@@ -31,3 +31,5 @@ if ($LASTEXITCODE -eq 0) {
 }
 
 Write-Host "📊 Reporte de tests disponible en: build/reports/tests/test/index.html" -ForegroundColor Cyan
+
+

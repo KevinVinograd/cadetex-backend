@@ -598,3 +598,4 @@ components:
           format: uuid
         receiptPhotoUrl:
           type: string
+

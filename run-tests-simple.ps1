@@ -21,3 +21,5 @@ if ($LASTEXITCODE -eq 0) {
 } else {
     Write-Host "❌ Algunos tests fallaron. Revisa el output anterior." -ForegroundColor Red
 }
+
+

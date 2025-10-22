@@ -43,3 +43,5 @@ task testWithReport {
         println "📊 Reporte de tests disponible en: build/reports/tests/test/index.html"
     }
 }
+
+

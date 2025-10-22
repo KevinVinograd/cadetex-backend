@@ -33,3 +33,5 @@ try {
 }
 
 Write-Host "`n🎯 Ahora puedes usar estas credenciales para hacer login en el frontend" -ForegroundColor Green
+
+

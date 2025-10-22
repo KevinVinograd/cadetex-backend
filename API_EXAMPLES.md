@@ -234,3 +234,4 @@ curl -X GET "http://localhost:8080/clients/search?name=Empresa" \
 3. **UUIDs**: Todos los IDs son UUIDs en formato string
 4. **Fechas**: Formato ISO 8601 (YYYY-MM-DD para fechas, YYYY-MM-DDTHH:mm:ss para timestamps)
 5. **Validación**: Los datos se validan automáticamente según las reglas definidas
+
