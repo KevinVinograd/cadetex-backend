@@ -9,6 +9,9 @@ import io.ktor.server.auth.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import org.slf4j.LoggerFactory
+
+private val logger = LoggerFactory.getLogger("ClientRoutes")
 
 fun Route.clientRoutes() {
     val clientRepository = ClientRepository()
@@ -80,20 +83,26 @@ fun Route.clientRoutes() {
 
             post {
                 val userData = call.getUserData()
+                
                 if (userData?.role == "SUPERADMIN" || userData?.role == "ORGADMIN") {
                     try {
                         val request = call.receive<CreateClientRequest>()
+                        
                         // Verificar que el orgadmin solo puede crear clientes en su organización
                         if (userData.role == "ORGADMIN" && request.organizationId != userData.organizationId) {
+                            logger.warn("ORGADMIN trying to create client in different organization: ${request.organizationId} != ${userData.organizationId}")
                             call.respond(HttpStatusCode.Forbidden, mapOf("error" to "No puedes crear clientes en otras organizaciones"))
                             return@post
                         }
+                        
                         val client = clientRepository.create(request)
                         call.respond(HttpStatusCode.Created, client)
                     } catch (e: Exception) {
+                        logger.error("Error creating client: ${e.message}", e)
                         call.respond(HttpStatusCode.BadRequest, mapOf("error" to e.message))
                     }
                 } else {
+                    logger.warn("Unauthorized user trying to create client: role=${userData?.role}")
                     call.respond(HttpStatusCode.Forbidden, mapOf("error" to "Solo administradores pueden crear clientes"))
                 }
             }

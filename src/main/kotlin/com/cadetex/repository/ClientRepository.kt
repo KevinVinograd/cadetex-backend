@@ -9,6 +9,9 @@ import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
 import kotlinx.datetime.Clock
 import java.util.*
+import org.slf4j.LoggerFactory
+
+private val logger = LoggerFactory.getLogger("ClientRepository")
 
 class ClientRepository {
 
@@ -55,31 +58,38 @@ class ClientRepository {
         val now = Clock.System.now()
         val id = UUID.randomUUID()
 
-        Clients.insert {
-            it[Clients.id] = id
-            it[organizationId] = UUID.fromString(request.organizationId)
-            it[name] = request.name
-            it[address] = request.address
-            it[city] = request.city
-            it[province] = request.province
-            it[contactName] = request.contactName
-            it[contactPhone] = request.contactPhone
-            it[createdAt] = now
-            it[updatedAt] = now
-        }
+        try {
+            Clients.insert {
+                it[Clients.id] = id
+                it[organizationId] = UUID.fromString(request.organizationId)
+                it[name] = request.name
+                it[address] = request.address
+                it[city] = request.city
+                it[province] = request.province
+                it[phoneNumber] = request.phoneNumber
+                it[email] = request.email
+                it[isActive] = request.isActive
+                it[createdAt] = now
+                it[updatedAt] = now
+            }
 
-        Client(
-            id = id.toString(),
-            organizationId = request.organizationId,
-            name = request.name,
-            address = request.address,
-            city = request.city,
-            province = request.province,
-            contactName = request.contactName,
-            contactPhone = request.contactPhone,
-            createdAt = now.toString(),
-            updatedAt = now.toString()
-        )
+            Client(
+                id = id.toString(),
+                organizationId = request.organizationId,
+                name = request.name,
+                address = request.address,
+                city = request.city,
+                province = request.province,
+                phoneNumber = request.phoneNumber,
+                email = request.email,
+                isActive = request.isActive,
+                createdAt = now.toString(),
+                updatedAt = now.toString()
+            )
+        } catch (e: Exception) {
+            logger.error("Error creating client: ${e.message}", e)
+            throw e
+        }
     }
 
     suspend fun update(id: String, updateRequest: UpdateClientRequest): Client? = newSuspendedTransaction {
@@ -90,8 +100,9 @@ class ClientRepository {
             updateRequest.address?.let { newAddress -> row[Clients.address] = newAddress }
             updateRequest.city?.let { newCity -> row[Clients.city] = newCity }
             updateRequest.province?.let { newProvince -> row[Clients.province] = newProvince }
-            updateRequest.contactName?.let { newContactName -> row[Clients.contactName] = newContactName }
-            updateRequest.contactPhone?.let { newContactPhone -> row[Clients.contactPhone] = newContactPhone }
+            updateRequest.phoneNumber?.let { newPhoneNumber -> row[Clients.phoneNumber] = newPhoneNumber }
+            updateRequest.email?.let { newEmail -> row[Clients.email] = newEmail }
+            updateRequest.isActive?.let { newIsActive -> row[Clients.isActive] = newIsActive }
             row[Clients.updatedAt] = now
         }
 
@@ -109,8 +120,9 @@ class ClientRepository {
         address = row[Clients.address],
         city = row[Clients.city],
         province = row[Clients.province],
-        contactName = row[Clients.contactName],
-        contactPhone = row[Clients.contactPhone],
+        phoneNumber = row[Clients.phoneNumber],
+        email = row[Clients.email],
+        isActive = row[Clients.isActive],
         createdAt = row[Clients.createdAt].toString(),
         updatedAt = row[Clients.updatedAt].toString()
     )

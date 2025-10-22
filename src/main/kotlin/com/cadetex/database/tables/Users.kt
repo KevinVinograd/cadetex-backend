@@ -10,6 +10,7 @@ object Users : UUIDTable("users") {
     val email = varchar("email", 150).uniqueIndex()
     val passwordHash = text("password_hash")
     val role = varchar("role", 20)
+    val isActive = bool("is_active").default(true)
     val createdAt = timestamp("created_at")
     val updatedAt = timestamp("updated_at")
 }

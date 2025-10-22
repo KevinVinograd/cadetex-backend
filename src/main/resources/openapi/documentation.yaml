@@ -1,0 +1,600 @@
+openapi: 3.0.1
+info:
+  title: Cadetex API
+  description: Sistema de gestión de cadetes - API REST
+  version: 1.0.0
+  contact:
+    name: Kevin Vinograd
+    email: kevin@cadetex.com
+servers:
+  - url: http://localhost:8080
+    description: Servidor de desarrollo
+paths:
+  /:
+    get:
+      summary: Health check
+      description: Verifica que la API esté funcionando
+      responses:
+        '200':
+          description: API funcionando correctamente
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "Cadetex API - Sistema de Gestión de Cadetes"
+  
+  /auth/register:
+    post:
+      summary: Registrar usuario
+      description: Crea un nuevo usuario en el sistema
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+      responses:
+        '201':
+          description: Usuario creado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: Error en la validación de datos
+        '409':
+          description: Usuario ya existe
+  
+  /auth/login:
+    post:
+      summary: Iniciar sesión
+      description: Autentica un usuario y devuelve un token JWT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login exitoso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: Credenciales inválidas
+  
+  /auth/validate:
+    post:
+      summary: Validar token
+      description: Valida un token JWT
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Token válido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserData'
+        '401':
+          description: Token inválido o expirado
+  
+  /organizations:
+    get:
+      summary: Listar organizaciones
+      description: Obtiene todas las organizaciones (solo SUPERADMIN)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Lista de organizaciones
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Organization'
+        '403':
+          description: Sin permisos
+    post:
+      summary: Crear organización
+      description: Crea una nueva organización (solo SUPERADMIN)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrganizationRequest'
+      responses:
+        '201':
+          description: Organización creada exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+        '400':
+          description: Error en la validación de datos
+        '403':
+          description: Sin permisos
+  
+  /organizations/{id}:
+    get:
+      summary: Obtener organización
+      description: Obtiene una organización por ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Organización encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+        '404':
+          description: Organización no encontrada
+        '403':
+          description: Sin permisos
+    put:
+      summary: Actualizar organización
+      description: Actualiza una organización existente
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateOrganizationRequest'
+      responses:
+        '200':
+          description: Organización actualizada exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+        '400':
+          description: Error en la validación de datos
+        '404':
+          description: Organización no encontrada
+        '403':
+          description: Sin permisos
+    delete:
+      summary: Eliminar organización
+      description: Elimina una organización
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Organización eliminada exitosamente
+        '404':
+          description: Organización no encontrada
+        '403':
+          description: Sin permisos
+  
+  /users:
+    get:
+      summary: Listar usuarios
+      description: Obtiene usuarios según el rol del usuario autenticado
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Lista de usuarios
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+        '403':
+          description: Sin permisos
+    post:
+      summary: Crear usuario
+      description: Crea un nuevo usuario
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+      responses:
+        '201':
+          description: Usuario creado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: Error en la validación de datos
+        '403':
+          description: Sin permisos
+  
+  /users/{id}:
+    get:
+      summary: Obtener usuario
+      description: Obtiene un usuario por ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Usuario encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '404':
+          description: Usuario no encontrado
+        '403':
+          description: Sin permisos
+    put:
+      summary: Actualizar usuario
+      description: Actualiza un usuario existente
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRequest'
+      responses:
+        '200':
+          description: Usuario actualizado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: Error en la validación de datos
+        '404':
+          description: Usuario no encontrado
+        '403':
+          description: Sin permisos
+    delete:
+      summary: Eliminar usuario
+      description: Elimina un usuario
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Usuario eliminado exitosamente
+        '404':
+          description: Usuario no encontrado
+        '403':
+          description: Sin permisos
+  
+  /tasks:
+    get:
+      summary: Listar tareas
+      description: Obtiene tareas según el rol del usuario autenticado
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Lista de tareas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Task'
+        '403':
+          description: Sin permisos
+    post:
+      summary: Crear tarea
+      description: Crea una nueva tarea
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTaskRequest'
+      responses:
+        '201':
+          description: Tarea creada exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '400':
+          description: Error en la validación de datos
+        '403':
+          description: Sin permisos
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        organizationId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [SUPERADMIN, ORGADMIN, COURIER]
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    
+    CreateUserRequest:
+      type: object
+      required:
+        - organizationId
+        - name
+        - email
+        - password
+        - role
+      properties:
+        organizationId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 6
+        role:
+          type: string
+          enum: [SUPERADMIN, ORGADMIN, COURIER]
+    
+    UpdateUserRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 6
+        role:
+          type: string
+          enum: [SUPERADMIN, ORGADMIN, COURIER]
+    
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+    
+    LoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+    
+    UserData:
+      type: object
+      properties:
+        userId:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+        organizationId:
+          type: string
+    
+    Organization:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    
+    CreateOrganizationRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+    
+    UpdateOrganizationRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+    
+    Task:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        organizationId:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [PICKUP, DELIVERY, RETURN, INSPECTION]
+        referenceNumber:
+          type: string
+        clientId:
+          type: string
+          format: uuid
+        providerId:
+          type: string
+          format: uuid
+        courierId:
+          type: string
+          format: uuid
+        addressOverride:
+          type: string
+        status:
+          type: string
+          enum: [PENDING, IN_PROGRESS, COMPLETED, CANCELLED]
+        priority:
+          type: string
+          enum: [LOW, NORMAL, HIGH, URGENT]
+        scheduledDate:
+          type: string
+          format: date
+        notes:
+          type: string
+        mbl:
+          type: string
+        hbl:
+          type: string
+        freightCert:
+          type: boolean
+        foCert:
+          type: boolean
+        bunkerCert:
+          type: boolean
+        linkedTaskId:
+          type: string
+          format: uuid
+        receiptPhotoUrl:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    
+    CreateTaskRequest:
+      type: object
+      required:
+        - organizationId
+        - type
+        - status
+        - priority
+      properties:
+        organizationId:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [PICKUP, DELIVERY, RETURN, INSPECTION]
+        referenceNumber:
+          type: string
+        clientId:
+          type: string
+          format: uuid
+        providerId:
+          type: string
+          format: uuid
+        courierId:
+          type: string
+          format: uuid
+        addressOverride:
+          type: string
+        status:
+          type: string
+          enum: [PENDING, IN_PROGRESS, COMPLETED, CANCELLED]
+        priority:
+          type: string
+          enum: [LOW, NORMAL, HIGH, URGENT]
+        scheduledDate:
+          type: string
+          format: date
+        notes:
+          type: string
+        mbl:
+          type: string
+        hbl:
+          type: string
+        freightCert:
+          type: boolean
+        foCert:
+          type: boolean
+        bunkerCert:
+          type: boolean
+        linkedTaskId:
+          type: string
+          format: uuid
+        receiptPhotoUrl:
+          type: string

@@ -36,3 +36,4 @@ data class UpdateCourierRequest(
     val vehicleType: String? = null,
     val isActive: Boolean? = null
 )
+

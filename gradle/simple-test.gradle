@@ -1,0 +1,45 @@
+// Plugin simple para tests con Docker
+import org.gradle.api.tasks.testing.Test
+
+// Task para verificar Docker
+task checkDocker {
+    doLast {
+        try {
+            exec {
+                commandLine 'docker', 'version'
+            }
+            println "✅ Docker está ejecutándose"
+        } catch (Exception e) {
+            throw new GradleException("❌ Docker no está ejecutándose. Por favor inicia Docker Desktop")
+        }
+    }
+}
+
+// Configurar tests
+test {
+    dependsOn checkDocker
+    
+    // Configurar JVM para tests
+    jvmArgs '-Xmx1g'
+    
+    // Configurar salida de tests
+    testLogging {
+        events "passed", "skipped", "failed"
+        exceptionFormat "full"
+        showStandardStreams = true
+    }
+    
+    // Ejecutar tests en paralelo
+    maxParallelForks = 2
+    
+    // Configurar timeouts
+    timeout = Duration.ofMinutes(5)
+}
+
+// Task para ejecutar tests con reporte
+task testWithReport {
+    dependsOn test
+    doLast {
+        println "📊 Reporte de tests disponible en: build/reports/tests/test/index.html"
+    }
+}

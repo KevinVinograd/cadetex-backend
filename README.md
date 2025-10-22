@@ -1,200 +1,421 @@
 # Cadetex Backend
 
-Sistema de gestión de cadetes - Backend API desarrollado con Kotlin y Ktor.
+Sistema de gestión de cadetes - Backend API
 
-## 🚀 Características
+## 🚀 Inicio Rápido
 
-- **API REST completa** para gestión de organizaciones, usuarios, clientes, proveedores, couriers y tareas
-- **Autenticación JWT** con hash de contraseñas BCrypt
-- **Control de acceso basado en roles** (SUPERADMIN, ORGADMIN, COURIER)
-- **Base de datos H2** con ORM Exposed
-- **Validación de datos** automática
-- **CORS configurado** para desarrollo frontend
-- **Logging completo** de requests
-
-## 🛠️ Tecnologías
-
-- **Kotlin 2.1.0** - Lenguaje principal
-- **Ktor 3.2.2** - Framework web
-- **Exposed 0.56.0** - ORM para base de datos
-- **H2 Database** - Base de datos en memoria
-- **JWT + BCrypt** - Autenticación y seguridad
-- **Gradle 8.5** - Build tool
-
-## 📋 Entidades
-
-- **Organizations** - Gestión de organizaciones
-- **Users** - Usuarios del sistema con roles
-- **Clients** - Clientes de las organizaciones
-- **Providers** - Proveedores de servicios
-- **Couriers** - Cadetes/couriers
-- **Tasks** - Tareas asignadas a couriers
-- **TaskPhotos** - Fotos asociadas a tareas
-- **TaskHistory** - Historial de cambios de tareas
-
-## 🔐 Autenticación
-
-### Endpoints públicos:
-- `POST /auth/register` - Registro de usuarios
-- `POST /auth/login` - Login de usuarios
-- `POST /auth/validate` - Validación de tokens (requiere JWT)
-
-### Headers requeridos para endpoints protegidos:
-```
-Authorization: Bearer <jwt_token>
-```
-
-## 🚀 Instalación y Ejecución
-
-### Prerrequisitos
-- Java 17 o superior
-- Gradle 8.5
-
-### Ejecutar la aplicación
+### 1. Levantar Base de Datos con Docker
 
 ```bash
-# Compilar el proyecto
+# Navegar al directorio del proyecto
+cd cadetex-backend
+
+# Levantar PostgreSQL y PgAdmin
+docker-compose up -d
+
+# Verificar que estén ejecutándose
+docker-compose ps
+```
+
+### 2. Conectarse a la Base de Datos
+
+#### Opción A: PgAdmin (Interfaz Web)
+1. Abrir http://localhost:5050
+2. Iniciar sesión:
+   - **Email**: `admin@cadetex.com`
+   - **Contraseña**: `admin123`
+3. Agregar servidor:
+   - **Host**: `127.0.0.1`
+   - **Puerto**: `5432`
+   - **Base de datos**: `cadetex`
+   - **Usuario**: `cadetex_user`
+   - **Contraseña**: `cadetex_password`
+
+#### Opción B: Línea de Comandos
+```bash
+# Conectar directamente a PostgreSQL
+docker exec -it cadetex-postgres psql -U cadetex_user -d cadetex
+```
+
+### 3. Ejecutar la Aplicación
+
+```bash
+# Compilar y ejecutar
 ./gradlew build
-
-# Ejecutar la aplicación
 ./gradlew run
-```
 
-La API estará disponible en `http://localhost:8080`
-
-### Ejecutar con JAR
-
-```bash
-# Generar JAR ejecutable
-./gradlew shadowJar
-
-# Ejecutar JAR
+# O ejecutar JAR
 java -jar build/libs/cadetex-backend-v2-all.jar
 ```
 
-## 📚 Endpoints de la API
+### 4. Acceder a la API
 
-### Organizaciones
+- **API**: http://localhost:8080
+- **Swagger UI**: http://localhost:8080/swagger
+- **OpenAPI YAML**: http://localhost:8080/openapi/documentation.yaml
+
+## 🛠️ Tecnologías
+
+- **Kotlin** 2.1.0
+- **Ktor** 3.2.2
+- **Exposed** 0.56.0 (ORM)
+- **PostgreSQL** 15
+- **JWT** para autenticación
+- **BCrypt** para hash de contraseñas
+- **Docker** para contenedores
+- **Swagger/OpenAPI** para documentación
+
+## 📁 Estructura del Proyecto
+
+```
+src/main/kotlin/com/cadetex/
+├── auth/                    # Autenticación JWT
+├── database/
+│   └── tables/             # Definiciones de tablas Exposed
+├── model/                  # Modelos de datos
+├── repository/             # Repositorios de datos
+├── routes/                 # Rutas de la API
+├── validation/             # Middleware de validación
+├── Application.kt          # Configuración principal
+├── Databases.kt           # Configuración de base de datos
+├── Routing.kt             # Configuración de rutas
+└── Serialization.kt       # Configuración de serialización
+```
+
+## 🗄️ Base de Datos
+
+### Configuración de PostgreSQL
+
+- **Host**: `127.0.0.1`
+- **Puerto**: `5432`
+- **Base de datos**: `cadetex`
+- **Usuario**: `cadetex_user`
+- **Contraseña**: `cadetex_password`
+
+### Scripts de Gestión
+
+```bash
+# Levantar base de datos
+.\start-database.ps1
+
+# Detener base de datos
+.\stop-database.ps1
+
+# Ver logs de PostgreSQL
+docker logs cadetex-postgres
+
+# Ver logs de PgAdmin
+docker logs cadetex-pgadmin
+```
+
+### Estructura de Tablas
+
+- `organizations` - Organizaciones
+- `users` - Usuarios del sistema
+- `clients` - Clientes
+- `providers` - Proveedores
+- `couriers` - Cadetes/couriers
+- `tasks` - Tareas
+- `task_photos` - Fotos de tareas
+- `task_history` - Historial de tareas
+
+## 🔐 Autenticación
+
+### Usuarios de Prueba
+
+| Email | Contraseña | Rol | Descripción |
+|-------|------------|-----|-------------|
+| `admin@cadetex.com` | `admin123` | SUPERADMIN | Administrador del sistema |
+| `orgadmin@cadetex.com` | `orgadmin123` | ORGADMIN | Administrador de organización |
+| `courier@cadetex.com` | `courier123` | COURIER | Cadete/courier |
+
+### Uso de JWT
+
+```bash
+# 1. Iniciar sesión
+curl -X POST http://localhost:8080/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email": "admin@cadetex.com", "password": "admin123"}'
+
+# 2. Usar el token en requests
+curl -X GET http://localhost:8080/users \
+  -H "Authorization: Bearer <tu-token-jwt>"
+```
+
+## 📚 Documentación de la API
+
+### Swagger UI
+Accede a http://localhost:8080/swagger para:
+- Ver todos los endpoints disponibles
+- Probar la API directamente desde el navegador
+- Ver esquemas de datos
+- Ejemplos de requests y responses
+
+### Endpoints Principales
+
+#### 🔐 Autenticación
+- `POST /auth/register` - Registrar usuario
+- `POST /auth/login` - Iniciar sesión
+- `POST /auth/validate` - Validar token
+
+#### 🏢 Organizaciones
 - `GET /organizations` - Listar organizaciones
 - `POST /organizations` - Crear organización
 - `GET /organizations/{id}` - Obtener organización
 - `PUT /organizations/{id}` - Actualizar organización
 - `DELETE /organizations/{id}` - Eliminar organización
 
-### Usuarios
+#### 👥 Usuarios
 - `GET /users` - Listar usuarios
 - `POST /users` - Crear usuario
 - `GET /users/{id}` - Obtener usuario
 - `PUT /users/{id}` - Actualizar usuario
 - `DELETE /users/{id}` - Eliminar usuario
-- `GET /users/organization/{orgId}` - Usuarios por organización
-- `GET /users/role/{role}` - Usuarios por rol
 
-### Clientes
-- `GET /clients` - Listar clientes
-- `POST /clients` - Crear cliente
-- `GET /clients/{id}` - Obtener cliente
-- `PUT /clients/{id}` - Actualizar cliente
-- `DELETE /clients/{id}` - Eliminar cliente
-- `GET /clients/organization/{orgId}` - Clientes por organización
-- `GET /clients/search?name={name}` - Buscar clientes por nombre
-- `GET /clients/search?city={city}` - Buscar clientes por ciudad
-
-### Proveedores
-- `GET /providers` - Listar proveedores
-- `POST /providers` - Crear proveedor
-- `GET /providers/{id}` - Obtener proveedor
-- `PUT /providers/{id}` - Actualizar proveedor
-- `DELETE /providers/{id}` - Eliminar proveedor
-- `GET /providers/organization/{orgId}` - Proveedores por organización
-- `GET /providers/search?name={name}` - Buscar proveedores por nombre
-- `GET /providers/search?city={city}` - Buscar proveedores por ciudad
-
-### Couriers
-- `GET /couriers` - Listar couriers
-- `POST /couriers` - Crear courier
-- `GET /couriers/{id}` - Obtener courier
-- `PUT /couriers/{id}` - Actualizar courier
-- `DELETE /couriers/{id}` - Eliminar courier
-- `GET /couriers/organization/{orgId}` - Couriers por organización
-- `GET /couriers/active/{orgId}` - Couriers activos por organización
-- `GET /couriers/search?name={name}` - Buscar couriers por nombre
-- `GET /couriers/search?phone={phone}` - Buscar couriers por teléfono
-
-### Tareas
+#### 📦 Tareas
 - `GET /tasks` - Listar tareas
 - `POST /tasks` - Crear tarea
 - `GET /tasks/{id}` - Obtener tarea
 - `PUT /tasks/{id}` - Actualizar tarea
 - `DELETE /tasks/{id}` - Eliminar tarea
-- `GET /tasks/organization/{orgId}` - Tareas por organización
 - `GET /tasks/courier/{courierId}` - Tareas por courier
 - `GET /tasks/status/{status}` - Tareas por estado
-- `GET /tasks/search?reference={ref}` - Buscar tareas por referencia
 
-### Fotos de Tareas
-- `GET /task-photos` - Listar fotos
-- `POST /task-photos` - Crear foto
-- `GET /task-photos/{id}` - Obtener foto
-- `PUT /task-photos/{id}` - Actualizar foto
-- `DELETE /task-photos/{id}` - Eliminar foto
-- `GET /task-photos/task/{taskId}` - Fotos por tarea
+#### 🚚 Couriers
+- `GET /couriers` - Listar couriers
+- `POST /couriers` - Crear courier
+- `GET /couriers/{id}` - Obtener courier
+- `PUT /couriers/{id}` - Actualizar courier
+- `DELETE /couriers/{id}` - Eliminar courier
 
-### Historial de Tareas
-- `GET /task-history` - Listar historial
-- `POST /task-history` - Crear entrada de historial
-- `GET /task-history/{id}` - Obtener entrada de historial
-- `PUT /task-history/{id}` - Actualizar entrada de historial
-- `DELETE /task-history/{id}` - Eliminar entrada de historial
-- `GET /task-history/task/{taskId}` - Historial por tarea
+#### 🏢 Clientes
+- `GET /clients` - Listar clientes
+- `POST /clients` - Crear cliente
+- `GET /clients/{id}` - Obtener cliente
+- `PUT /clients/{id}` - Actualizar cliente
+- `DELETE /clients/{id}` - Eliminar cliente
 
-## 🔒 Control de Acceso
-
-### Roles del Sistema:
-- **SUPERADMIN**: Acceso completo a todas las organizaciones y datos
-- **ORGADMIN**: Acceso limitado a su organización
-- **COURIER**: Acceso limitado a sus tareas asignadas
-
-### Reglas de Acceso:
-- Los SUPERADMIN pueden ver y gestionar todo
-- Los ORGADMIN solo pueden ver datos de su organización
-- Los COURIER solo pueden ver sus tareas asignadas
-- Todos los endpoints requieren autenticación JWT excepto `/auth/*`
+#### 🏭 Proveedores
+- `GET /providers` - Listar proveedores
+- `POST /providers` - Crear proveedor
+- `GET /providers/{id}` - Obtener proveedor
+- `PUT /providers/{id}` - Actualizar proveedor
+- `DELETE /providers/{id}` - Eliminar proveedor
 
 ## 🧪 Testing
 
+### Tests de Integración
+
+El proyecto incluye tests de integración completos que:
+
+- **Levantan PostgreSQL en Docker** automáticamente para cada test
+- **Inicializan datos de prueba** en cada ejecución
+- **Testean endpoints completos** con autenticación JWT
+- **Verifican lógica de negocio** y flujos de trabajo
+- **Validan control de acceso** por roles de usuario
+
+### Ejecutar Tests
+
 ```bash
+# Ejecutar todos los tests (recomendado)
+.\run-tests-simple.ps1
+
+# O ejecutar manualmente con Gradle
+./gradlew test
+
+# Ejecutar tests con reporte detallado
+./gradlew test --info
+
+# Ejecutar tests con reporte HTML
+./gradlew testWithReport
+
+# Ver reporte HTML de tests
+# Abrir: build/reports/tests/test/index.html
+```
+
+### ¿Qué hace automáticamente?
+
+- ✅ **Verifica Docker** está ejecutándose
+- 🐳 **Levanta PostgreSQL** en contenedor para tests
+- 🧪 **Ejecuta todos los tests** de integración
+- 📊 **Genera reporte HTML** con resultados
+- 🧹 **Limpia contenedores** al finalizar
+
+### Estado Actual de Tests
+
+- ✅ **Tests básicos** funcionando correctamente
+- ✅ **Configuración de Gradle** con Docker integrado
+- ✅ **Reportes HTML** generados automáticamente
+- 🔄 **Tests de integración** pendientes de implementación
+
+### Integración Frontend-Backend
+
+- ✅ **API Service** configurado para comunicación
+- ✅ **Autenticación JWT** integrada
+- ✅ **Login** conectado con backend real
+- ✅ **Organizaciones** con CRUD completo
+- 🔄 **Clientes, Proveedores, Couriers** en progreso
+
+### Crear Usuario de Prueba
+
+```bash
+# Ejecutar script para crear usuario de prueba
+.\create-test-user.ps1
+
+# Credenciales de prueba:
+# Email: admin@cadetex.com
+# Password: admin123
+# Role: SUPERADMIN
+```
+
+### Tipos de Tests
+
+#### 🔐 Tests de Autenticación
+- Registro de usuarios
+- Login y validación de tokens
+- Manejo de errores de autenticación
+- Validación de datos de entrada
+
+#### 🏢 Tests de Organizaciones
+- CRUD completo de organizaciones
+- Control de acceso por roles
+- Validación de permisos
+- Manejo de errores
+
+#### 📦 Tests de Tareas
+- Creación y gestión de tareas
+- Asignación a couriers
+- Cambios de estado
+- Búsqueda y filtrado
+- Flujos de trabajo completos
+
+#### 🚚 Tests de Couriers
+- Gestión de couriers
+- Búsqueda por nombre y teléfono
+- Filtrado por organización
+- Estados activo/inactivo
+
+#### 🔄 Tests de Lógica de Negocio
+- Flujos de trabajo completos (PICKUP -> DELIVERY)
+- Transiciones de estado de tareas
+- Gestión de prioridades
+- Historial de cambios
+- Búsquedas y filtros complejos
+
+### Configuración de Tests
+
+Los tests utilizan:
+- **Testcontainers** para PostgreSQL en Docker
+- **Ktor Test Engine** para testing de endpoints
+- **JUnit 5** con ejecución paralela
+- **Datos de prueba** generados automáticamente
+
+### Ejemplos de Uso
+
+Ver `API_EXAMPLES.md` para ejemplos completos de uso de la API con curl.
+
+### Datos de Prueba
+
+La base de datos se inicializa automáticamente con:
+- 1 organización demo
+- 3 usuarios de prueba (SUPERADMIN, ORGADMIN, COURIER)
+- 1 cliente demo
+- 1 proveedor demo
+- 1 courier demo
+
+## 🐳 Docker
+
+### Comandos Útiles
+
+```bash
+# Ver estado de contenedores
+docker-compose ps
+
+# Ver logs
+docker-compose logs postgres
+docker-compose logs pgadmin
+
+# Reiniciar servicios
+docker-compose restart
+
+# Detener y eliminar contenedores
+docker-compose down
+
+# Detener y eliminar contenedores + volúmenes
+docker-compose down -v
+```
+
+### Volúmenes
+
+- `postgres_data`: Datos persistentes de PostgreSQL
+- Los datos se mantienen entre reinicios del contenedor
+
+## 🔧 Desarrollo
+
+### Instalación
+
+```bash
+# Clonar repositorio
+git clone <repository-url>
+cd cadetex-backend
+
+# Instalar dependencias
+./gradlew build
+```
+
+### Estructura de Código
+
+- **Models**: Definiciones de datos y DTOs
+- **Tables**: Esquemas de base de datos con Exposed
+- **Repositories**: Lógica de acceso a datos
+- **Routes**: Endpoints de la API
+- **Auth**: Autenticación JWT
+- **Validation**: Middleware de validación
+
+### Scripts de Desarrollo
+
+```bash
+# Compilar
+./gradlew build
+
 # Ejecutar tests
 ./gradlew test
 
-# Ejecutar tests con reporte de cobertura
-./gradlew test jacocoTestReport
+# Generar JAR
+./gradlew shadowJar
+
+# Limpiar build
+./gradlew clean
 ```
 
-## 📝 Estructura del Proyecto
+## 🚨 Solución de Problemas
 
-```
-src/main/kotlin/com/cadetex/
-├── auth/                    # Autenticación JWT
-├── database/tables/         # Definiciones de tablas Exposed
-├── model/                   # Modelos de datos
-├── repository/              # Repositorios de datos
-├── routes/                  # Definiciones de rutas API
-├── validation/              # Validación de datos
-├── Application.kt           # Configuración principal
-├── CORS.kt                  # Configuración CORS
-├── Databases.kt             # Configuración de base de datos
-├── Logging.kt               # Configuración de logging
-└── Routing.kt               # Configuración de rutas
-```
+### PostgreSQL no se conecta
 
-## 🤝 Contribución
+1. Verificar que Docker esté ejecutándose
+2. Verificar que los contenedores estén activos: `docker-compose ps`
+3. Verificar logs: `docker logs cadetex-postgres`
+4. Probar conexión: `Test-NetConnection -ComputerName 127.0.0.1 -Port 5432`
+
+### PgAdmin no se conecta
+
+1. Usar `127.0.0.1` en lugar de `localhost`
+2. Verificar que el puerto 5432 esté expuesto
+3. Verificar logs: `docker logs cadetex-pgadmin`
+
+### Aplicación no inicia
+
+1. Verificar que PostgreSQL esté ejecutándose
+2. Verificar configuración en `application.conf`
+3. Verificar logs de la aplicación
+
+## 📝 Contribuir
 
 1. Fork el proyecto
-2. Crea una rama para tu feature (`git checkout -b feature/AmazingFeature`)
+2. Crear una rama para tu feature (`git checkout -b feature/AmazingFeature`)
 3. Commit tus cambios (`git commit -m 'Add some AmazingFeature'`)
 4. Push a la rama (`git push origin feature/AmazingFeature`)
-5. Abre un Pull Request
+5. Abrir un Pull Request
 
 ## 📄 Licencia
 

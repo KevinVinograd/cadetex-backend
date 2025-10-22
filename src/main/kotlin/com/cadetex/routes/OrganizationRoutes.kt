@@ -9,6 +9,9 @@ import io.ktor.server.auth.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import org.slf4j.LoggerFactory
+
+private val logger = LoggerFactory.getLogger("OrganizationRoutes")
 
 fun Route.organizationRoutes() {
     val organizationRepository = OrganizationRepository()
@@ -43,9 +46,11 @@ fun Route.organizationRoutes() {
                         val organization = organizationRepository.create(request)
                         call.respond(HttpStatusCode.Created, organization)
                     } catch (e: Exception) {
+                        logger.error("Error creating organization: ${e.message}", e)
                         call.respond(HttpStatusCode.BadRequest, mapOf("error" to e.message))
                     }
                 } else {
+                    logger.warn("Unauthorized user trying to create organization: role=${userData?.role}")
                     call.respond(HttpStatusCode.Forbidden, mapOf("error" to "Solo superadministradores pueden crear organizaciones"))
                 }
             }
@@ -63,9 +68,11 @@ fun Route.organizationRoutes() {
                             call.respond(HttpStatusCode.NotFound)
                         }
                     } catch (e: Exception) {
+                        logger.error("Error updating organization: ${e.message}", e)
                         call.respond(HttpStatusCode.BadRequest, mapOf("error" to e.message))
                     }
                 } else {
+                    logger.warn("Unauthorized user trying to update organization: role=${userData?.role}")
                     call.respond(HttpStatusCode.Forbidden, mapOf("error" to "Solo superadministradores pueden actualizar organizaciones"))
                 }
             }
@@ -74,13 +81,19 @@ fun Route.organizationRoutes() {
                 val userData = call.getUserData()
                 if (userData?.role == "SUPERADMIN") {
                     val id = call.parameters["id"] ?: return@delete call.respond(HttpStatusCode.BadRequest)
-                    val deleted = organizationRepository.delete(id)
-                    if (deleted) {
-                        call.respond(HttpStatusCode.NoContent)
-                    } else {
-                        call.respond(HttpStatusCode.NotFound)
+                    try {
+                        val deleted = organizationRepository.delete(id)
+                        if (deleted) {
+                            call.respond(HttpStatusCode.NoContent)
+                        } else {
+                            call.respond(HttpStatusCode.NotFound)
+                        }
+                    } catch (e: Exception) {
+                        logger.error("Error deleting organization: ${e.message}", e)
+                        call.respond(HttpStatusCode.BadRequest, mapOf("error" to e.message))
                     }
                 } else {
+                    logger.warn("Unauthorized user trying to delete organization: role=${userData?.role}")
                     call.respond(HttpStatusCode.Forbidden, mapOf("error" to "Solo superadministradores pueden eliminar organizaciones"))
                 }
             }

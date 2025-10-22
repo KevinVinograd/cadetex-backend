@@ -16,3 +16,4 @@ fun Application.configureCORS() {
         anyHost() // En producción, especificar dominios específicos
     }
 }
+

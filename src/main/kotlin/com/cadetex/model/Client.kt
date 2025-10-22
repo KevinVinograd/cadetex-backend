@@ -9,10 +9,11 @@ data class Client(
     val organizationId: String,
     val name: String,
     val address: String,
-    val city: String? = null,
-    val province: String? = null,
-    val contactName: String? = null,
-    val contactPhone: String? = null,
+    val city: String,
+    val province: String,
+    val phoneNumber: String? = null,
+    val email: String? = null,
+    val isActive: Boolean = true,
     val createdAt: String? = null,
     val updatedAt: String? = null
 )
@@ -22,10 +23,11 @@ data class CreateClientRequest(
     val organizationId: String,
     val name: String,
     val address: String,
-    val city: String? = null,
-    val province: String? = null,
-    val contactName: String? = null,
-    val contactPhone: String? = null
+    val city: String,
+    val province: String,
+    val phoneNumber: String? = null,
+    val email: String? = null,
+    val isActive: Boolean = true
 )
 
 @Serializable
@@ -34,6 +36,8 @@ data class UpdateClientRequest(
     val address: String? = null,
     val city: String? = null,
     val province: String? = null,
-    val contactName: String? = null,
-    val contactPhone: String? = null
+    val phoneNumber: String? = null,
+    val email: String? = null,
+    val isActive: Boolean? = null
 )
+

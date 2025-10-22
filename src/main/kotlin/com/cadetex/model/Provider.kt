@@ -37,3 +37,4 @@ data class UpdateProviderRequest(
     val contactName: String? = null,
     val contactPhone: String? = null
 )
+

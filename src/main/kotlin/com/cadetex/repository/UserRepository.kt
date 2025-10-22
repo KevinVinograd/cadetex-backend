@@ -60,6 +60,7 @@ class UserRepository {
             it[Users.email] = request.email
             it[Users.passwordHash] = passwordHash
             it[Users.role] = request.role.name
+            it[Users.isActive] = request.isActive
             it[Users.createdAt] = now
             it[Users.updatedAt] = now
         }
@@ -71,6 +72,7 @@ class UserRepository {
             email = request.email,
             passwordHash = passwordHash,
             role = request.role,
+            isActive = request.isActive,
             createdAt = now.toString(),
             updatedAt = now.toString()
         )
@@ -84,6 +86,7 @@ class UserRepository {
             updateRequest.email?.let { newEmail -> row[Users.email] = newEmail }
             updateRequest.password?.let { newPassword -> row[Users.passwordHash] = hashPassword(newPassword) }
             updateRequest.role?.let { newRole -> row[Users.role] = newRole.name }
+            updateRequest.isActive?.let { newIsActive -> row[Users.isActive] = newIsActive }
             row[Users.updatedAt] = now
         }
 
@@ -101,6 +104,7 @@ class UserRepository {
         email = row[Users.email],
         passwordHash = row[Users.passwordHash],
         role = UserRole.valueOf(row[Users.role]),
+        isActive = row[Users.isActive],
         createdAt = row[Users.createdAt].toString(),
         updatedAt = row[Users.updatedAt].toString()
     )

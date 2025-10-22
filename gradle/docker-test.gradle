@@ -1,0 +1,140 @@
+// Plugin para manejar Docker en tests
+import org.gradle.api.tasks.testing.Test
+
+// Task para verificar que Docker esté ejecutándose
+task checkDocker {
+    doLast {
+        try {
+            exec {
+                commandLine 'docker', 'version'
+            }
+            println "✅ Docker está ejecutándose"
+        } catch (Exception e) {
+            throw new GradleException("❌ Docker no está ejecutándose. Por favor inicia Docker Desktop")
+        }
+    }
+}
+
+// Task para levantar PostgreSQL para tests
+task startTestDatabase {
+    dependsOn checkDocker
+    doLast {
+        println "🐳 Levantando PostgreSQL para tests..."
+        
+        // Verificar si ya está ejecutándose
+        def result = exec {
+            commandLine 'docker', 'ps', '--filter', 'name=cadetex-test-postgres', '--format', '{{.Names}}'
+            ignoreExitValue = true
+        }
+        
+        if (!result.output.toString().contains("cadetex-test-postgres")) {
+            // Crear red si no existe
+            exec {
+                commandLine 'docker', 'network', 'create', 'cadetex-test-network'
+                ignoreExitValue = true
+            }
+            
+            // Levantar PostgreSQL para tests
+            exec {
+                commandLine 'docker', 'run', '-d',
+                    '--name', 'cadetex-test-postgres',
+                    '--network', 'cadetex-test-network',
+                    '-e', 'POSTGRES_DB=cadetex_test',
+                    '-e', 'POSTGRES_USER=test_user',
+                    '-e', 'POSTGRES_PASSWORD=test_password',
+                    '-p', '5433:5432',
+                    'postgres:15-alpine'
+            }
+            
+            // Esperar a que PostgreSQL esté listo
+            println "⏳ Esperando a que PostgreSQL esté listo..."
+            Thread.sleep(10000)
+            
+            // Verificar que esté ejecutándose
+            exec {
+                commandLine 'docker', 'exec', 'cadetex-test-postgres', 'pg_isready', '-U', 'test_user', '-d', 'cadetex_test'
+            }
+            
+            println "✅ PostgreSQL para tests está listo en puerto 5433"
+        } else {
+            println "✅ PostgreSQL para tests ya está ejecutándose"
+        }
+    }
+}
+
+// Task para detener PostgreSQL de tests
+task stopTestDatabase {
+    doLast {
+        println "🛑 Deteniendo PostgreSQL de tests..."
+        exec {
+            commandLine 'docker', 'stop', 'cadetex-test-postgres'
+            ignoreExitValue = true
+        }
+        exec {
+            commandLine 'docker', 'rm', 'cadetex-test-postgres'
+            ignoreExitValue = true
+        }
+        println "✅ PostgreSQL de tests detenido"
+    }
+}
+
+// Configurar tests para usar Docker
+test {
+    dependsOn startTestDatabase
+    finalizedBy stopTestDatabase
+    
+    // Configurar variables de entorno para tests
+    environment 'TEST_DATABASE_URL', 'jdbc:postgresql://localhost:5433/cadetex_test'
+    environment 'TEST_DATABASE_USER', 'test_user'
+    environment 'TEST_DATABASE_PASSWORD', 'test_password'
+    
+    // Configurar JVM para tests
+    jvmArgs '-Xmx2g', '-XX:+UseG1GC'
+    
+    // Configurar salida de tests
+    testLogging {
+        events "passed", "skipped", "failed"
+        exceptionFormat "full"
+        showStandardStreams = true
+    }
+    
+    // Ejecutar tests en paralelo
+    maxParallelForks = Runtime.runtime.availableProcessors().intdiv(2) ?: 1
+    
+    // Configurar timeouts
+    timeout = Duration.ofMinutes(10)
+}
+
+// Task para limpiar contenedores de test
+task cleanTestContainers {
+    doLast {
+        println "🧹 Limpiando contenedores de test..."
+        exec {
+            commandLine 'docker', 'stop', 'cadetex-test-postgres'
+            ignoreExitValue = true
+        }
+        exec {
+            commandLine 'docker', 'rm', 'cadetex-test-postgres'
+            ignoreExitValue = true
+        }
+        exec {
+            commandLine 'docker', 'network', 'rm', 'cadetex-test-network'
+            ignoreExitValue = true
+        }
+        println "✅ Contenedores de test limpiados"
+    }
+}
+
+// Task para ejecutar tests con reporte
+task testWithReport {
+    dependsOn test
+    doLast {
+        println "📊 Reporte de tests disponible en: build/reports/tests/test/index.html"
+        println "🔍 Para ver el reporte, abre el archivo en tu navegador"
+    }
+}
+
+// Configurar clean para incluir limpieza de Docker
+clean {
+    dependsOn cleanTestContainers
+}

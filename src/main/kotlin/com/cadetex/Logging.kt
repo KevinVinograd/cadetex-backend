@@ -17,3 +17,4 @@ fun Application.configureLogging() {
         }
     }
 }
+

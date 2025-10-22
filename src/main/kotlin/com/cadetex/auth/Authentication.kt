@@ -46,3 +46,4 @@ fun ApplicationCall.getUserData(): JwtTokenData? {
         )
     }
 }
+

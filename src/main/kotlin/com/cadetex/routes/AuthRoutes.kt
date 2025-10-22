@@ -3,14 +3,19 @@ package com.cadetex.routes
 import com.cadetex.auth.AuthService
 import com.cadetex.auth.AuthResult
 import com.cadetex.model.UserRole
+import com.cadetex.repository.UserRepository
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import org.slf4j.LoggerFactory
+
+private val logger = LoggerFactory.getLogger("AuthRoutes")
 
 fun Route.authRoutes() {
     val authService = AuthService()
+    val userRepository = UserRepository()
 
     route("/auth") {
         post("/login") {
@@ -21,21 +26,20 @@ fun Route.authRoutes() {
                 when (result) {
                     is AuthResult.Success -> {
                         call.respond(HttpStatusCode.OK, LoginResponse(
-                            success = true,
-                            user = result.user,
-                            token = result.token
+                            token = result.token,
+                            user = result.user
                         ))
                     }
                     is AuthResult.Error -> {
-                        call.respond(HttpStatusCode.Unauthorized, LoginResponse(
-                            success = false,
+                        logger.warn("Login failed for email: ${request.email}, reason: ${result.message}")
+                        call.respond(HttpStatusCode.Unauthorized, ErrorResponse(
                             error = result.message
                         ))
                     }
                 }
             } catch (e: Exception) {
-                call.respond(HttpStatusCode.BadRequest, LoginResponse(
-                    success = false,
+                logger.error("Error in login endpoint: ${e.message}", e)
+                call.respond(HttpStatusCode.BadRequest, ErrorResponse(
                     error = "Error en el formato de la solicitud: ${e.message}"
                 ))
             }
@@ -44,32 +48,40 @@ fun Route.authRoutes() {
         post("/register") {
             try {
                 val request = call.receive<RegisterRequest>()
+                
+                val userRole = try {
+                    UserRole.valueOf(request.role.uppercase())
+                } catch (e: IllegalArgumentException) {
+                    logger.warn("Invalid role provided: ${request.role}")
+                    call.respond(HttpStatusCode.BadRequest, ErrorResponse(error = "Rol inválido: ${request.role}"))
+                    return@post
+                }
+                
                 val result = authService.register(
                     organizationId = request.organizationId,
                     name = request.name,
                     email = request.email,
                     password = request.password,
-                    role = request.role
+                    role = userRole
                 )
                 
                 when (result) {
                     is AuthResult.Success -> {
                         call.respond(HttpStatusCode.Created, LoginResponse(
-                            success = true,
-                            user = result.user,
-                            token = result.token
+                            token = result.token,
+                            user = result.user
                         ))
                     }
                     is AuthResult.Error -> {
-                        call.respond(HttpStatusCode.BadRequest, LoginResponse(
-                            success = false,
+                        logger.warn("Registration failed for email: ${request.email}, reason: ${result.message}")
+                        call.respond(HttpStatusCode.BadRequest, ErrorResponse(
                             error = result.message
                         ))
                     }
                 }
             } catch (e: Exception) {
-                call.respond(HttpStatusCode.BadRequest, LoginResponse(
-                    success = false,
+                logger.error("Error in register endpoint: ${e.message}", e)
+                call.respond(HttpStatusCode.BadRequest, ErrorResponse(
                     error = "Error en el formato de la solicitud: ${e.message}"
                 ))
             }
@@ -79,21 +91,31 @@ fun Route.authRoutes() {
             try {
                 val token = call.request.headers["Authorization"]?.removePrefix("Bearer ")
                 if (token == null) {
-                    call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Token no proporcionado"))
+                    logger.warn("Token validation failed: No token provided")
+                    call.respond(HttpStatusCode.Unauthorized, ErrorResponse(error = "Token no proporcionado"))
                     return@post
                 }
                 
-                val userData = authService.validateToken(token)
-                if (userData != null) {
-                    call.respond(HttpStatusCode.OK, mapOf(
-                        "valid" to true,
-                        "user" to userData
-                    ))
+                val tokenData = authService.validateToken(token)
+                if (tokenData != null) {
+                    // Buscar el usuario completo en la base de datos
+                    val user = userRepository.findById(tokenData.userId)
+                    if (user != null) {
+                        call.respond(HttpStatusCode.OK, ValidateResponse(
+                            valid = true,
+                            user = user
+                        ))
+                    } else {
+                        logger.warn("Token validation failed: User not found for ID: ${tokenData.userId}")
+                        call.respond(HttpStatusCode.Unauthorized, ErrorResponse(error = "Usuario no encontrado"))
+                    }
                 } else {
-                    call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Token inválido"))
+                    logger.warn("Token validation failed: Invalid token")
+                    call.respond(HttpStatusCode.Unauthorized, ErrorResponse(error = "Token inválido"))
                 }
             } catch (e: Exception) {
-                call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Error al validar token"))
+                logger.error("Error in validate endpoint: ${e.message}", e)
+                call.respond(HttpStatusCode.BadRequest, ErrorResponse(error = "Error al validar token: ${e.message}"))
             }
         }
     }
@@ -111,13 +133,23 @@ data class RegisterRequest(
     val name: String,
     val email: String,
     val password: String,
-    val role: UserRole
+    val role: String
 )
 
 @kotlinx.serialization.Serializable
 data class LoginResponse(
-    val success: Boolean,
-    val user: com.cadetex.model.User? = null,
-    val token: String? = null,
-    val error: String? = null
+    val token: String,
+    val user: com.cadetex.model.User
 )
+
+@kotlinx.serialization.Serializable
+data class ErrorResponse(
+    val error: String
+)
+
+@kotlinx.serialization.Serializable
+data class ValidateResponse(
+    val valid: Boolean,
+    val user: com.cadetex.model.User? = null
+)
+

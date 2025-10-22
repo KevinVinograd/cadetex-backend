@@ -25,3 +25,4 @@ data class UpdateTaskPhotoRequest(
     val photoUrl: String? = null,
     val description: String? = null
 )
+

@@ -3,9 +3,10 @@ package com.cadetex
 import com.cadetex.auth.configureAuthentication
 import com.cadetex.validation.configureValidation
 import io.ktor.server.application.*
+import io.ktor.server.cio.EngineMain
 
 fun main() {
-    // Application will be started by Ktor plugin
+    EngineMain.main(emptyArray())
 }
 
 fun Application.module() {
@@ -15,5 +16,6 @@ fun Application.module() {
     configureLogging()
     configureValidation()
     configureAuthentication()
+    configureOpenAPI()
     configureRouting()
 }
