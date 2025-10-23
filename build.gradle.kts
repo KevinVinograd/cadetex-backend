@@ -11,6 +11,15 @@ apply(from = "gradle/simple-test.gradle")
 group = "com.cadetex"
 version = "0.0.1"
 
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+kotlin {
+    jvmToolchain(17)
+}
+
 application {
     mainClass.set("com.cadetex.ApplicationKt")
 }
@@ -44,10 +53,10 @@ dependencies {
 
     // Logging
     implementation("ch.qos.logback:logback-classic:1.4.14")
-    
+
     // Security
     implementation("org.mindrot:jbcrypt:0.4")
-    
+
     // OpenAPI/Swagger
     implementation("io.ktor:ktor-server-openapi:3.2.2")
 

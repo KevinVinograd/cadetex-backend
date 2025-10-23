@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS organizations (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Users table
+-- Users table (authentication and authorization)
 CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
@@ -55,13 +55,13 @@ CREATE TABLE IF NOT EXISTS providers (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Couriers table
+-- Couriers table (business data with user relationship)
 CREATE TABLE IF NOT EXISTS couriers (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID UNIQUE REFERENCES users(id) ON DELETE CASCADE,
     organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
     name VARCHAR(100) NOT NULL,
     phone_number VARCHAR(50) NOT NULL,
-    email VARCHAR(150),
     address VARCHAR(255),
     vehicle_type VARCHAR(50),
     is_active BOOLEAN DEFAULT TRUE,
@@ -90,6 +90,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     bunker_cert BOOLEAN DEFAULT FALSE,
     linked_task_id UUID REFERENCES tasks(id) ON DELETE SET NULL,
     receipt_photo_url TEXT,
+    photo_required BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -98,75 +99,52 @@ CREATE TABLE IF NOT EXISTS tasks (
 CREATE TABLE IF NOT EXISTS task_photos (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     task_id UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
-    url TEXT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    photo_url TEXT NOT NULL,
+    photo_type VARCHAR(20) NOT NULL CHECK (photo_type IN ('RECEIPT', 'ADDITIONAL')),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-
--- Task History table
-CREATE TABLE IF NOT EXISTS task_history (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    task_id UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
-    previous_status VARCHAR(30),
-    new_status VARCHAR(30),
-    changed_by VARCHAR(100),
-    changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Create indexes for better performance
-CREATE INDEX IF NOT EXISTS idx_users_organization_id ON users(organization_id);
-CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
-CREATE INDEX IF NOT EXISTS idx_clients_organization_id ON clients(organization_id);
-CREATE INDEX IF NOT EXISTS idx_providers_organization_id ON providers(organization_id);
-CREATE INDEX IF NOT EXISTS idx_couriers_organization_id ON couriers(organization_id);
-CREATE INDEX IF NOT EXISTS idx_tasks_organization_id ON tasks(organization_id);
-CREATE INDEX IF NOT EXISTS idx_tasks_courier_id ON tasks(courier_id);
-CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
-CREATE INDEX IF NOT EXISTS idx_task_photos_task_id ON task_photos(task_id);
-CREATE INDEX IF NOT EXISTS idx_task_history_task_id ON task_history(task_id);
 
 -- Insert initial data
 INSERT INTO organizations (id, name) VALUES 
     ('00000000-0000-0000-0000-000000000001', 'Cadetex Demo Organization')
 ON CONFLICT (id) DO NOTHING;
 
--- Insert demo superadmin user (password: password)
+-- Insert demo users (with hashed passwords)
+-- Password for all demo users: "password123"
 INSERT INTO users (id, organization_id, name, email, password_hash, role) VALUES 
-    ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'Super Admin', 'admin@cadetex.com', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'SUPERADMIN')
+    ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'Admin Demo', 'admin@cadetex.com', '$2a$10$gYdF8HSMLRzGXRtEnxttZuj0L/lVKEAGKz2OwosuvQdq8T4MliWJu', 'SUPERADMIN'),
+    ('00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', 'Org Admin Demo', 'orgadmin@cadetex.com', '$2a$10$gYdF8HSMLRzGXRtEnxttZuj0L/lVKEAGKz2OwosuvQdq8T4MliWJu', 'ORGADMIN'),
+    ('00000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001', 'Carlos López', 'carlos@cadetex.com', '$2a$10$gYdF8HSMLRzGXRtEnxttZuj0L/lVKEAGKz2OwosuvQdq8T4MliWJu', 'COURIER')
 ON CONFLICT (id) DO NOTHING;
 
--- Insert demo organization admin user (password: orgadmin123)
-INSERT INTO users (id, organization_id, name, email, password_hash, role) VALUES 
-    ('00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', 'Org Admin', 'orgadmin@cadetex.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'ORGADMIN')
-ON CONFLICT (id) DO NOTHING;
-
--- Insert demo courier user (password: courier123)
-INSERT INTO users (id, organization_id, name, email, password_hash, role) VALUES 
-    ('00000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001', 'Courier Demo', 'courier@cadetex.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'COURIER')
-ON CONFLICT (id) DO NOTHING;
-
--- Insert demo client
+-- Insert demo clients
 INSERT INTO clients (id, organization_id, name, address, city, province, phone_number, email) VALUES 
-    ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'Cliente Demo S.A.', 'Av. Corrientes 1234', 'Buenos Aires', 'CABA', '+54911234567', 'cliente@demo.com')
+    ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'Cliente Demo S.A.', 'Av. Corrientes 1234', 'Buenos Aires', 'CABA', '+54911234567', 'cliente@demo.com'),
+    ('00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', 'Empresa Logística ABC', 'Av. Santa Fe 5678', 'Buenos Aires', 'CABA', '+54911234568', 'contacto@empresaabc.com')
 ON CONFLICT (id) DO NOTHING;
 
--- Insert demo provider
+-- Insert demo providers
 INSERT INTO providers (id, organization_id, name, address, city, province, contact_name, contact_phone) VALUES 
-    ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'Proveedor Demo S.A.', 'Av. Santa Fe 5678', 'Buenos Aires', 'CABA', 'Juan Pérez', '+54911234568')
+    ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'Proveedor Demo S.A.', 'Av. Santa Fe 5678', 'Buenos Aires', 'CABA', 'Juan Pérez', '+54911234568'),
+    ('00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', 'Transportes XYZ', 'Av. Rivadavia 9012', 'Buenos Aires', 'CABA', 'María González', '+54911234569')
 ON CONFLICT (id) DO NOTHING;
 
--- Insert demo courier
-INSERT INTO couriers (id, organization_id, name, phone_number, email, address, vehicle_type) VALUES 
-    ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'Carlos López', '+54911234569', 'carlos@cadetex.com', 'Av. Rivadavia 9012', 'Moto')
+-- Insert demo courier (linked to user)
+INSERT INTO couriers (id, user_id, organization_id, name, phone_number, address, vehicle_type) VALUES 
+    ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001', 'Carlos López', '+54911234569', 'Av. Rivadavia 9012', 'Moto')
 ON CONFLICT (id) DO NOTHING;
 
 -- Insert demo tasks
-INSERT INTO tasks (id, organization_id, type, reference_number, client_id, provider_id, courier_id, status, priority, scheduled_date, notes, mbl, hbl, freight_cert, fo_cert, bunker_cert) VALUES 
-    ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'RETIRE', 'RET-001', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'PENDING', 'URGENT', '2024-01-15', 'Recoger documentos urgentes', 'MBL001', 'HBL001', true, false, true),
-    ('00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', 'DELIVER', 'DEL-002', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'CONFIRMED', 'NORMAL', '2024-01-16', 'Entrega de mercadería', 'MBL002', 'HBL002', false, true, false),
-    ('00000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001', 'RETIRE', 'RET-003', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'COMPLETED', 'NORMAL', '2024-01-14', 'Devolución de productos', 'MBL003', 'HBL003', true, true, true),
-    ('00000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000001', 'DELIVER', 'DEL-004', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'PENDING_CONFIRMATION', 'URGENT', '2024-01-17', 'Inspección de contenedor', 'MBL004', 'HBL004', false, false, false),
-    ('00000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000001', 'RETIRE', 'RET-005', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'CANCELLED', 'NORMAL', '2024-01-13', 'Tarea cancelada por cliente', 'MBL005', 'HBL005', true, false, false)
+INSERT INTO tasks (id, organization_id, type, reference_number, client_id, provider_id, courier_id, status, priority, scheduled_date, notes, mbl, hbl, freight_cert, fo_cert, bunker_cert, photo_required) VALUES 
+    ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'RETIRE', 'RET-001', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'PENDING', 'URGENT', '2024-01-15', 'Recoger documentos urgentes', 'MBL001', 'HBL001', true, false, true, true),
+    ('00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', 'DELIVER', 'DEL-002', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'CONFIRMED', 'NORMAL', '2024-01-16', 'Entrega de mercadería', 'MBL002', 'HBL002', false, true, false, true),
+    ('00000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001', 'RETIRE', 'RET-003', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'COMPLETED', 'NORMAL', '2024-01-14', 'Devolución de productos', 'MBL003', 'HBL003', true, true, true, false),
+    ('00000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000001', 'DELIVER', 'DEL-004', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'PENDING_CONFIRMATION', 'URGENT', '2024-01-17', 'Inspección de contenedor', 'MBL004', 'HBL004', false, false, false, true),
+    ('00000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000001', 'RETIRE', 'RET-005', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'CANCELLED', 'NORMAL', '2024-01-13', 'Tarea cancelada por cliente', 'MBL005', 'HBL005', true, false, false, false)
+ON CONFLICT (id) DO NOTHING;
+
+-- Insert demo task photos
+INSERT INTO task_photos (id, task_id, photo_url, photo_type) VALUES 
+    ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000003', '/photos/receipt-001.jpg', 'RECEIPT'),
+    ('00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000003', '/photos/additional-001.jpg', 'ADDITIONAL')
 ON CONFLICT (id) DO NOTHING;

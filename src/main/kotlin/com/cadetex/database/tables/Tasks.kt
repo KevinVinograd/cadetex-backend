@@ -23,6 +23,7 @@ object Tasks : UUIDTable("tasks") {
     val bunkerCert = bool("bunker_cert").default(false)
     val linkedTaskId = reference("linked_task_id", id, onDelete = ReferenceOption.SET_NULL).nullable()
     val receiptPhotoUrl = text("receipt_photo_url").nullable()
+    val photoRequired = bool("photo_required").default(false)
     val createdAt = timestamp("created_at")
     val updatedAt = timestamp("updated_at")
 }

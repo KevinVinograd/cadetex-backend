@@ -145,9 +145,6 @@ object ValidationService {
         if (request.phoneNumber.isBlank()) {
             errors.add("phoneNumber is required")
         }
-        if (request.email.isNullOrBlank() || !isValidEmail(request.email)) {
-            errors.add("email is required and must be valid")
-        }
         
         return errors
     }
@@ -160,9 +157,6 @@ object ValidationService {
         }
         if (request.phoneNumber != null && request.phoneNumber.isBlank()) {
             errors.add("phoneNumber cannot be blank")
-        }
-        if (request.email != null && (request.email.isBlank() || !isValidEmail(request.email))) {
-            errors.add("email must be valid")
         }
         
         return errors

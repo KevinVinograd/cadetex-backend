@@ -42,6 +42,7 @@ data class Task(
     val bunkerCert: Boolean = false,
     val linkedTaskId: String? = null,
     val receiptPhotoUrl: String? = null,
+    val photoRequired: Boolean = false,
     val createdAt: String? = null,
     val updatedAt: String? = null
 )
@@ -65,7 +66,8 @@ data class CreateTaskRequest(
     val foCert: Boolean = false,
     val bunkerCert: Boolean = false,
     val linkedTaskId: String? = null,
-    val receiptPhotoUrl: String? = null
+    val receiptPhotoUrl: String? = null,
+    val photoRequired: Boolean = false
 )
 
 @Serializable
