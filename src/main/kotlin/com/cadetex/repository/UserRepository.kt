@@ -14,9 +14,6 @@ import org.mindrot.jbcrypt.BCrypt
 
 class UserRepository {
 
-    suspend fun allUsers(): List<User> = newSuspendedTransaction {
-        Users.selectAll().map(::rowToUser)
-    }
 
     suspend fun findById(id: String): User? = newSuspendedTransaction {
         Users

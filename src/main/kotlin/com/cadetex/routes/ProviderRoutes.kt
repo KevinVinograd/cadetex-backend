@@ -17,14 +17,10 @@ fun Route.providerRoutes() {
         authenticate("jwt") {
             get {
                 val userData = call.getUserData()
-                if (userData?.role == "SUPERADMIN") {
-                    val providers = providerRepository.allProviders()
-                    call.respond(providers)
-                } else {
-                    // Los orgadmin solo ven proveedores de su organización
-                    val providers = providerRepository.findByOrganization(userData?.organizationId ?: "")
-                    call.respond(providers)
-                }
+                val organizationId = userData?.organizationId ?: return@get call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "No se pudo obtener la organización del usuario"))
+                
+                val providers = providerRepository.findByOrganization(organizationId)
+                call.respond(providers)
             }
 
             get("/{id}") {

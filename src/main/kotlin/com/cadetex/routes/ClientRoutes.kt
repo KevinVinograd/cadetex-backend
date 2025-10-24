@@ -20,14 +20,10 @@ fun Route.clientRoutes() {
         authenticate("jwt") {
             get {
                 val userData = call.getUserData()
-                if (userData?.role == "SUPERADMIN") {
-                    val clients = clientRepository.allClients()
-                    call.respond(clients)
-                } else {
-                    // Los orgadmin solo ven clientes de su organización
-                    val clients = clientRepository.findByOrganization(userData?.organizationId ?: "")
-                    call.respond(clients)
-                }
+                val organizationId = userData?.organizationId ?: return@get call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "No se pudo obtener la organización del usuario"))
+                
+                val clients = clientRepository.findByOrganization(organizationId)
+                call.respond(clients)
             }
 
             get("/{id}") {

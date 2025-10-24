@@ -15,9 +15,6 @@ private val logger = LoggerFactory.getLogger("ClientRepository")
 
 class ClientRepository {
 
-    suspend fun allClients(): List<Client> = newSuspendedTransaction {
-        Clients.selectAll().map(::rowToClient)
-    }
 
     suspend fun findById(id: String): Client? = newSuspendedTransaction {
         Clients

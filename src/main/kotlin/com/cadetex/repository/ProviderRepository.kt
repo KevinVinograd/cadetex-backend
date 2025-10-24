@@ -12,9 +12,6 @@ import java.util.*
 
 class ProviderRepository {
 
-    suspend fun allProviders(): List<Provider> = newSuspendedTransaction {
-        Providers.selectAll().map(::rowToProvider)
-    }
 
     suspend fun findById(id: String): Provider? = newSuspendedTransaction {
         Providers

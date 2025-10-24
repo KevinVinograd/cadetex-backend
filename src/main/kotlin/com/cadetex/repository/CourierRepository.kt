@@ -27,9 +27,6 @@ class CourierRepository {
         }
     }
 
-    suspend fun allCouriers(): List<Courier> = newSuspendedTransaction {
-        Couriers.selectAll().map(::rowToCourier)
-    }
 
     suspend fun findById(id: String): Courier? = newSuspendedTransaction {
         validateUUID(id, "courier ID")

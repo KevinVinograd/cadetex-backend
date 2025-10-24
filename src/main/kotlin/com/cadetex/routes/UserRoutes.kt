@@ -17,14 +17,10 @@ fun Route.userRoutes() {
         authenticate("jwt") {
             get {
                 val userData = call.getUserData()
-                if (userData?.role == "SUPERADMIN") {
-                    val users = userRepository.allUsers()
-                    call.respond(users)
-                } else {
-                    // Los orgadmin solo ven usuarios de su organización
-                    val users = userRepository.findByOrganization(userData?.organizationId ?: "")
-                    call.respond(users)
-                }
+                val organizationId = userData?.organizationId ?: return@get call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "No se pudo obtener la organización del usuario"))
+                
+                val users = userRepository.findByOrganization(organizationId)
+                call.respond(users)
             }
 
             get("/{id}") {
@@ -75,15 +71,12 @@ fun Route.userRoutes() {
                 try {
                     val role = UserRole.valueOf(roleStr.uppercase())
                     val userData = call.getUserData()
-                    if (userData?.role == "SUPERADMIN") {
-                        val users = userRepository.findByRole(role)
-                        call.respond(users)
-                    } else {
-                        // Filtrar por organización y rol
-                        val allUsers = userRepository.findByOrganization(userData?.organizationId ?: "")
-                        val filteredUsers = allUsers.filter { it.role == role }
-                        call.respond(filteredUsers)
-                    }
+                    val organizationId = userData?.organizationId ?: return@get call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "No se pudo obtener la organización del usuario"))
+                    
+                    // Filtrar por organización y rol
+                    val allUsers = userRepository.findByOrganization(organizationId)
+                    val filteredUsers = allUsers.filter { it.role == role }
+                    call.respond(filteredUsers)
                 } catch (e: IllegalArgumentException) {
                     call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Invalid role"))
                 }

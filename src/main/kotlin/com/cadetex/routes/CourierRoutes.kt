@@ -17,14 +17,10 @@ fun Route.courierRoutes() {
         authenticate("jwt") {
             get {
                 val userData = call.getUserData()
-                if (userData?.role == "SUPERADMIN") {
-                    val couriers = courierRepository.allCouriers()
-                    call.respond(couriers)
-                } else {
-                    // Los orgadmin solo ven couriers de su organización
-                    val couriers = courierRepository.findByOrganization(userData?.organizationId ?: "")
-                    call.respond(couriers)
-                }
+                val organizationId = userData?.organizationId ?: return@get call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "No se pudo obtener la organización del usuario"))
+                
+                val couriers = courierRepository.findByOrganization(organizationId)
+                call.respond(couriers)
             }
 
             get("/{id}") {
