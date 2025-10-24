@@ -9,9 +9,11 @@ import io.ktor.server.auth.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import org.slf4j.LoggerFactory
 
 fun Route.taskRoutes() {
     val taskRepository = TaskRepository()
+    val logger = LoggerFactory.getLogger("TaskRoutes")
 
     route("/tasks") {
         authenticate("jwt") {
@@ -134,9 +136,13 @@ fun Route.taskRoutes() {
             put("/{id}") {
                 val id = call.parameters["id"] ?: return@put call.respond(HttpStatusCode.BadRequest)
                 val userData = call.getUserData()
+                
+                logger.info("PUT /tasks/$id - User: ${userData?.userId}, Role: ${userData?.role}")
+                
                 val existingTask = taskRepository.findById(id)
                 
                 if (existingTask == null) {
+                    logger.warn("Task not found: $id")
                     call.respond(HttpStatusCode.NotFound)
                     return@put
                 }
@@ -147,16 +153,26 @@ fun Route.taskRoutes() {
                     (userData?.role == "COURIER" && existingTask.courierId == userData.userId)) {
                     try {
                         val request = call.receive<UpdateTaskRequest>()
+                        
+                        // Log específico para cambios de cliente/proveedor
+                        if (existingTask.clientId != request.clientId || existingTask.providerId != request.providerId) {
+                            logger.info("Contact change detected - Task: $id, Old: client=${existingTask.clientId}, provider=${existingTask.providerId}, New: client=${request.clientId}, provider=${request.providerId}")
+                        }
+                        
                         val task = taskRepository.update(id, request)
                         if (task != null) {
+                            logger.info("Task updated successfully: $id")
                             call.respond(task)
                         } else {
+                            logger.error("Failed to update task: $id")
                             call.respond(HttpStatusCode.NotFound)
                         }
                     } catch (e: Exception) {
+                        logger.error("Error updating task $id", e)
                         call.respond(HttpStatusCode.BadRequest, mapOf("error" to e.message))
                     }
                 } else {
+                    logger.warn("Permission denied for task $id - User: ${userData?.userId}, Role: ${userData?.role}")
                     call.respond(HttpStatusCode.Forbidden, mapOf("error" to "No tienes permisos para actualizar esta tarea"))
                 }
             }
