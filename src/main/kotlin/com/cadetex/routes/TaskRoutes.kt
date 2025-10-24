@@ -144,7 +144,7 @@ fun Route.taskRoutes() {
                 // Verificar permisos
                 if (userData?.role == "SUPERADMIN" || 
                     (userData?.role == "ORGADMIN" && existingTask.organizationId == userData.organizationId) ||
-                    (userData?.role == "COURIER" && existingTask.courierId == userData.userId)) { // Los couriers pueden actualizar sus tareas
+                    (userData?.role == "COURIER" && existingTask.courierId == userData.userId)) {
                     try {
                         val request = call.receive<UpdateTaskRequest>()
                         val task = taskRepository.update(id, request)
@@ -174,11 +174,15 @@ fun Route.taskRoutes() {
                 // Solo superadmin y orgadmin pueden eliminar tareas
                 if (userData?.role == "SUPERADMIN" || 
                     (userData?.role == "ORGADMIN" && existingTask.organizationId == userData.organizationId)) {
-                    val deleted = taskRepository.delete(id)
-                    if (deleted) {
-                        call.respond(HttpStatusCode.NoContent)
-                    } else {
-                        call.respond(HttpStatusCode.NotFound)
+                    try {
+                        val deleted = taskRepository.delete(id)
+                        if (deleted) {
+                            call.respond(HttpStatusCode.NoContent)
+                        } else {
+                            call.respond(HttpStatusCode.NotFound)
+                        }
+                    } catch (e: Exception) {
+                        call.respond(HttpStatusCode.BadRequest, mapOf("error" to e.message))
                     }
                 } else {
                     call.respond(HttpStatusCode.Forbidden, mapOf("error" to "No tienes permisos para eliminar esta tarea"))
