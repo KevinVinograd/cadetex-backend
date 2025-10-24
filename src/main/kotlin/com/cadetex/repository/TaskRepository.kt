@@ -354,6 +354,9 @@ class TaskRepository {
                             updateRequest.linkedTaskId?.let { newLinkedTaskId ->
                                 row[Tasks.linkedTaskId] = UUID.fromString(newLinkedTaskId)
                             }
+                            updateRequest.receiptPhotoUrl?.let { newReceiptPhotoUrl ->
+                                row[Tasks.receiptPhotoUrl] = newReceiptPhotoUrl
+                            }
                             row[Tasks.updatedAt] = now
                         }
 

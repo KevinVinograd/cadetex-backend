@@ -13,12 +13,37 @@ private val logger = LoggerFactory.getLogger("Database")
 fun Application.configureDatabases() {
     logger.info("Configuring database connection...")
     
+    // Preferir variables de entorno/propiedades de sistema para tests (Testcontainers)
+    val env = System.getenv()
+    val sys = System.getProperties()
+
+    // application.conf
+    val appCfg = environment.config
+    val jdbcFromConfig = appCfg.propertyOrNull("database.jdbcUrl")?.getString()
+    val host = appCfg.propertyOrNull("database.host")?.getString() ?: "localhost"
+    val port = appCfg.propertyOrNull("database.port")?.getString()?.toIntOrNull() ?: 5432
+    val name = appCfg.propertyOrNull("database.name")?.getString() ?: "cadetex"
+    val userConf = appCfg.propertyOrNull("database.user")?.getString() ?: "cadetex_user"
+    val passConf = appCfg.propertyOrNull("database.password")?.getString() ?: "cadetex_password"
+    val poolSizeConf = appCfg.propertyOrNull("database.maxPoolSize")?.getString()?.toIntOrNull()
+
+    // Overrides por props/env (System properties PRIORIDAD para que Testcontainers de tests gane sobre env del host)
+    val dbUrlOverride = (sys.getProperty("DB_URL") ?: env["DB_URL"])
+    val dbUserOverride = (sys.getProperty("DB_USER") ?: env["DB_USER"])
+    val dbPassOverride = (sys.getProperty("DB_PASSWORD") ?: env["DB_PASSWORD"])
+    val poolOverride = (sys.getProperty("DB_MAX_POOL") ?: env["DB_MAX_POOL"])?.toIntOrNull()
+
+    val resolvedJdbcUrl = dbUrlOverride ?: jdbcFromConfig ?: "jdbc:postgresql://$host:$port/$name"
+    val resolvedUser = dbUserOverride ?: userConf
+    val resolvedPass = dbPassOverride ?: passConf
+    val resolvedPool = poolOverride ?: poolSizeConf ?: 10
+
     val config = HikariConfig().apply {
         driverClassName = "org.postgresql.Driver"
-        jdbcUrl = "jdbc:postgresql://localhost:5432/cadetex"
-        username = "cadetex_user"
-        password = "cadetex_password"
-        maximumPoolSize = 10
+        jdbcUrl = resolvedJdbcUrl
+        username = resolvedUser
+        password = resolvedPass
+        maximumPoolSize = resolvedPool
         isAutoCommit = false
         transactionIsolation = "TRANSACTION_REPEATABLE_READ"
         validate()

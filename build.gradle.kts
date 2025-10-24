@@ -62,10 +62,13 @@ dependencies {
 
     // Testing
     testImplementation("io.ktor:ktor-server-test-host:3.2.2")
-    testImplementation("io.ktor:ktor-client-content-negotiation:3.2.2")
     testImplementation("io.ktor:ktor-serialization-kotlinx-json:3.2.2")
-    testImplementation("org.jetbrains.kotlin:kotlin-test-junit:2.1.0")
+    // JUnit 5 + Kotlin test bindings
+    testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
+    testImplementation("org.jetbrains.kotlin:kotlin-test-junit5:2.1.0")
+    // Testcontainers
     testImplementation("org.testcontainers:junit-jupiter:1.19.3")
     testImplementation("org.testcontainers:postgresql:1.19.3")
+    // Coroutines testing
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
 }

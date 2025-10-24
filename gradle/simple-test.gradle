@@ -8,9 +8,10 @@ task checkDocker {
             exec {
                 commandLine 'docker', 'version'
             }
-            println "✅ Docker está ejecutándose"
+            println "✅ Docker CLI disponible"
         } catch (Exception e) {
-            throw new GradleException("❌ Docker no está ejecutándose. Por favor inicia Docker Desktop")
+            println "⚠️  No se pudo ejecutar 'docker version' (CLI no disponible o permisos)."
+            println "    Continuando de todas formas: Testcontainers usará el socket si está accesible."
         }
     }
 }
@@ -34,6 +35,9 @@ test {
     
     // Configurar timeouts
     timeout = Duration.ofMinutes(5)
+
+    // Usar JUnit Platform (Jupiter)
+    useJUnitPlatform()
 }
 
 // Task para ejecutar tests con reporte
