@@ -1,9 +1,12 @@
 package com.cadetex.model
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import java.util.*
 
 @Serializable
+@OptIn(ExperimentalSerializationApi::class)
 data class Client(
     val id: String = UUID.randomUUID().toString(),
     val organizationId: String,
@@ -13,12 +16,13 @@ data class Client(
     val province: String,
     val phoneNumber: String? = null,
     val email: String? = null,
-    val isActive: Boolean = true,
+    @EncodeDefault val isActive: Boolean = true,
     val createdAt: String? = null,
     val updatedAt: String? = null
 )
 
 @Serializable
+@OptIn(ExperimentalSerializationApi::class)
 data class CreateClientRequest(
     val organizationId: String,
     val name: String,
@@ -27,7 +31,7 @@ data class CreateClientRequest(
     val province: String,
     val phoneNumber: String? = null,
     val email: String? = null,
-    val isActive: Boolean = true
+    @EncodeDefault val isActive: Boolean = true
 )
 
 @Serializable

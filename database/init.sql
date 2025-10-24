@@ -78,6 +78,9 @@ CREATE TABLE IF NOT EXISTS tasks (
     client_id UUID REFERENCES clients(id) ON DELETE SET NULL,
     provider_id UUID REFERENCES providers(id) ON DELETE SET NULL,
     address_override VARCHAR(255),
+    city VARCHAR(100),
+    province VARCHAR(100),
+    contact VARCHAR(100),
     courier_id UUID REFERENCES couriers(id) ON DELETE SET NULL,
     status VARCHAR(30) NOT NULL CHECK (status IN ('PENDING', 'PENDING_CONFIRMATION', 'CONFIRMED', 'COMPLETED', 'CANCELLED')),
     priority VARCHAR(10) NOT NULL CHECK (priority IN ('NORMAL', 'URGENT')),
@@ -92,7 +95,11 @@ CREATE TABLE IF NOT EXISTS tasks (
     receipt_photo_url TEXT,
     photo_required BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT check_contact_exclusivity CHECK (
+        (client_id IS NOT NULL AND provider_id IS NULL) OR 
+        (client_id IS NULL AND provider_id IS NOT NULL)
+    )
 );
 
 -- Task Photos table
@@ -118,29 +125,29 @@ INSERT INTO users (id, organization_id, name, email, password_hash, role) VALUES
 ON CONFLICT (id) DO NOTHING;
 
 -- Insert demo clients
-INSERT INTO clients (id, organization_id, name, address, city, province, phone_number, email) VALUES 
-    ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'Cliente Demo S.A.', 'Av. Corrientes 1234', 'Buenos Aires', 'CABA', '+54911234567', 'cliente@demo.com'),
-    ('00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', 'Empresa Logística ABC', 'Av. Santa Fe 5678', 'Buenos Aires', 'CABA', '+54911234568', 'contacto@empresaabc.com')
+INSERT INTO clients (id, organization_id, name, address, city, province, phone_number, email, is_active) VALUES 
+    ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'Cliente Demo S.A.', 'Av. Corrientes 1234', 'Buenos Aires', 'CABA', '+54911234567', 'cliente@demo.com', true),
+    ('00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', 'Empresa Logística ABC', 'Av. Santa Fe 5678', 'Buenos Aires', 'CABA', '+54911234568', 'contacto@empresaabc.com', true)
 ON CONFLICT (id) DO NOTHING;
 
 -- Insert demo providers
-INSERT INTO providers (id, organization_id, name, address, city, province, contact_name, contact_phone) VALUES 
-    ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'Proveedor Demo S.A.', 'Av. Santa Fe 5678', 'Buenos Aires', 'CABA', 'Juan Pérez', '+54911234568'),
-    ('00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', 'Transportes XYZ', 'Av. Rivadavia 9012', 'Buenos Aires', 'CABA', 'María González', '+54911234569')
+INSERT INTO providers (id, organization_id, name, address, city, province, contact_name, contact_phone, is_active) VALUES 
+    ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'Proveedor Demo S.A.', 'Av. Santa Fe 5678', 'Buenos Aires', 'CABA', 'Juan Pérez', '+54911234568', true),
+    ('00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', 'Transportes XYZ', 'Av. Rivadavia 9012', 'Buenos Aires', 'CABA', 'María González', '+54911234569', true)
 ON CONFLICT (id) DO NOTHING;
 
 -- Insert demo courier (linked to user)
-INSERT INTO couriers (id, user_id, organization_id, name, phone_number, address, vehicle_type) VALUES 
-    ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001', 'Carlos López', '+54911234569', 'Av. Rivadavia 9012', 'Moto')
+INSERT INTO couriers (id, user_id, organization_id, name, phone_number, address, vehicle_type, is_active) VALUES 
+    ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001', 'Carlos López', '+54911234569', 'Av. Rivadavia 9012', 'Moto', true)
 ON CONFLICT (id) DO NOTHING;
 
 -- Insert demo tasks
-INSERT INTO tasks (id, organization_id, type, reference_number, client_id, provider_id, courier_id, status, priority, scheduled_date, notes, mbl, hbl, freight_cert, fo_cert, bunker_cert, photo_required) VALUES 
-    ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'RETIRE', 'RET-001', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'PENDING', 'URGENT', '2024-01-15', 'Recoger documentos urgentes', 'MBL001', 'HBL001', true, false, true, true),
-    ('00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', 'DELIVER', 'DEL-002', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'CONFIRMED', 'NORMAL', '2024-01-16', 'Entrega de mercadería', 'MBL002', 'HBL002', false, true, false, true),
-    ('00000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001', 'RETIRE', 'RET-003', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'COMPLETED', 'NORMAL', '2024-01-14', 'Devolución de productos', 'MBL003', 'HBL003', true, true, true, false),
-    ('00000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000001', 'DELIVER', 'DEL-004', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'PENDING_CONFIRMATION', 'URGENT', '2024-01-17', 'Inspección de contenedor', 'MBL004', 'HBL004', false, false, false, true),
-    ('00000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000001', 'RETIRE', 'RET-005', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'CANCELLED', 'NORMAL', '2024-01-13', 'Tarea cancelada por cliente', 'MBL005', 'HBL005', true, false, false, false)
+INSERT INTO tasks (id, organization_id, type, reference_number, client_id, provider_id, address_override, city, province, contact, courier_id, status, priority, scheduled_date, notes, mbl, hbl, freight_cert, fo_cert, bunker_cert, photo_required) VALUES 
+    ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'RETIRE', 'RET-001', '00000000-0000-0000-0000-000000000001', NULL, NULL, NULL, NULL, NULL, '00000000-0000-0000-0000-000000000001', 'PENDING', 'URGENT', '2024-01-15', 'Recoger documentos urgentes', 'MBL001', 'HBL001', true, false, true, true),
+    ('00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', 'DELIVER', 'DEL-002', NULL, '00000000-0000-0000-0000-000000000001', NULL, NULL, NULL, NULL, '00000000-0000-0000-0000-000000000001', 'CONFIRMED', 'NORMAL', '2024-01-16', 'Entrega de mercadería', 'MBL002', 'HBL002', false, true, false, true),
+    ('00000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001', 'RETIRE', 'RET-003', '00000000-0000-0000-0000-000000000001', NULL, 'Av. 9 de Julio 999', 'Buenos Aires', 'CABA', 'Carlos López', '00000000-0000-0000-0000-000000000001', 'COMPLETED', 'NORMAL', '2024-01-14', 'Devolución de productos', 'MBL003', 'HBL003', true, true, true, false),
+    ('00000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000001', 'DELIVER', 'DEL-004', NULL, '00000000-0000-0000-0000-000000000001', 'Av. Rivadavia 1111', 'Buenos Aires', 'CABA', 'Ana Martínez', '00000000-0000-0000-0000-000000000001', 'PENDING_CONFIRMATION', 'URGENT', '2024-01-17', 'Inspección de contenedor', 'MBL004', 'HBL004', false, false, false, true),
+    ('00000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000001', 'RETIRE', 'RET-005', '00000000-0000-0000-0000-000000000001', NULL, 'Av. Callao 2222', 'Buenos Aires', 'CABA', 'Roberto Silva', '00000000-0000-0000-0000-000000000001', 'CANCELLED', 'NORMAL', '2024-01-13', 'Tarea cancelada por cliente', 'MBL005', 'HBL005', true, false, false, false)
 ON CONFLICT (id) DO NOTHING;
 
 -- Insert demo task photos

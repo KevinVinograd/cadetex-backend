@@ -1,6 +1,9 @@
 package com.cadetex.repository
 
 import com.cadetex.database.tables.Tasks
+import com.cadetex.database.tables.Clients
+import com.cadetex.database.tables.Providers
+import com.cadetex.database.tables.Couriers
 import com.cadetex.model.Task
 import com.cadetex.model.TaskStatus
 import com.cadetex.model.UpdateTaskRequest
@@ -33,14 +36,82 @@ class TaskRepository {
 
     suspend fun tasksByOrganization(organizationId: String): List<Task> = newSuspendedTransaction {
         validateUUID(organizationId, "organization ID")
-        Tasks.selectAll()
+        Tasks
+                .leftJoin(Clients, { Tasks.clientId }, { Clients.id })
+                .leftJoin(Providers, { Tasks.providerId }, { Providers.id })
+                .leftJoin(Couriers, { Tasks.courierId }, { Couriers.id })
+                .select(
+                    Tasks.id,
+                    Tasks.organizationId,
+                    Tasks.type,
+                    Tasks.referenceNumber,
+                    Tasks.clientId,
+                    Clients.name,
+                    Tasks.providerId,
+                    Providers.name,
+                    Tasks.addressOverride,
+                    Tasks.city,
+                    Tasks.province,
+                    Tasks.contact,
+                    Tasks.courierId,
+                    Couriers.name,
+                    Tasks.status,
+                    Tasks.priority,
+                    Tasks.scheduledDate,
+                    Tasks.notes,
+                    Tasks.mbl,
+                    Tasks.hbl,
+                    Tasks.freightCert,
+                    Tasks.foCert,
+                    Tasks.bunkerCert,
+                    Tasks.linkedTaskId,
+                    Tasks.receiptPhotoUrl,
+                    Tasks.photoRequired,
+                    Tasks.createdAt,
+                    Tasks.updatedAt
+                )
                 .where { Tasks.organizationId eq UUID.fromString(organizationId) }
-                .map(::rowToTask)
+                .map(::rowToTaskWithNames)
     }
 
     suspend fun tasksByCourier(courierId: String): List<Task> = newSuspendedTransaction {
         validateUUID(courierId, "courier ID")
-        Tasks.selectAll().where { Tasks.courierId eq UUID.fromString(courierId) }.map(::rowToTask)
+        Tasks
+                .leftJoin(Clients, { Tasks.clientId }, { Clients.id })
+                .leftJoin(Providers, { Tasks.providerId }, { Providers.id })
+                .leftJoin(Couriers, { Tasks.courierId }, { Couriers.id })
+                .select(
+                    Tasks.id,
+                    Tasks.organizationId,
+                    Tasks.type,
+                    Tasks.referenceNumber,
+                    Tasks.clientId,
+                    Clients.name,
+                    Tasks.providerId,
+                    Providers.name,
+                    Tasks.addressOverride,
+                    Tasks.city,
+                    Tasks.province,
+                    Tasks.contact,
+                    Tasks.courierId,
+                    Couriers.name,
+                    Tasks.status,
+                    Tasks.priority,
+                    Tasks.scheduledDate,
+                    Tasks.notes,
+                    Tasks.mbl,
+                    Tasks.hbl,
+                    Tasks.freightCert,
+                    Tasks.foCert,
+                    Tasks.bunkerCert,
+                    Tasks.linkedTaskId,
+                    Tasks.receiptPhotoUrl,
+                    Tasks.photoRequired,
+                    Tasks.createdAt,
+                    Tasks.updatedAt
+                )
+                .where { Tasks.courierId eq UUID.fromString(courierId) }
+                .map(::rowToTaskWithNames)
     }
 
     suspend fun tasksByStatus(status: TaskStatus): List<Task> = newSuspendedTransaction {
@@ -70,6 +141,9 @@ class TaskRepository {
             it[clientId] = task.clientId?.let { UUID.fromString(it) }
             it[providerId] = task.providerId?.let { UUID.fromString(it) }
             it[addressOverride] = task.addressOverride
+            it[city] = task.city
+            it[province] = task.province
+            it[contact] = task.contact
             it[courierId] = task.courierId?.let { UUID.fromString(it) }
             it[status] = task.status.name
             it[priority] = task.priority.name
@@ -109,6 +183,15 @@ class TaskRepository {
                             updateRequest.addressOverride?.let { newAddressOverride ->
                                 row[Tasks.addressOverride] = newAddressOverride
                             }
+                            updateRequest.city?.let { newCity ->
+                                row[Tasks.city] = newCity
+                            }
+                            updateRequest.province?.let { newProvince ->
+                                row[Tasks.province] = newProvince
+                            }
+                            updateRequest.contact?.let { newContact ->
+                                row[Tasks.contact] = newContact
+                            }
                             updateRequest.courierId?.let { newCourierId ->
                                 row[Tasks.courierId] = UUID.fromString(newCourierId)
                             }
@@ -122,6 +205,9 @@ class TaskRepository {
                                 row[Tasks.scheduledDate] = newScheduledDate
                             }
                             updateRequest.notes?.let { newNotes -> row[Tasks.notes] = newNotes }
+                            updateRequest.photoRequired?.let { newPhotoRequired ->
+                                row[Tasks.photoRequired] = newPhotoRequired
+                            }
                             updateRequest.mbl?.let { newMbl -> row[Tasks.mbl] = newMbl }
                             updateRequest.hbl?.let { newHbl -> row[Tasks.hbl] = newHbl }
                             updateRequest.freightCert?.let { newFreightCert ->
@@ -153,7 +239,42 @@ class TaskRepository {
                     clientId = row[Tasks.clientId]?.value?.toString(),
                     providerId = row[Tasks.providerId]?.value?.toString(),
                     addressOverride = row[Tasks.addressOverride],
+                    city = row[Tasks.city],
+                    province = row[Tasks.province],
+                    contact = row[Tasks.contact],
                     courierId = row[Tasks.courierId]?.value?.toString(),
+                    status = TaskStatus.valueOf(row[Tasks.status]),
+                    priority = com.cadetex.model.TaskPriority.valueOf(row[Tasks.priority]),
+                    scheduledDate = row[Tasks.scheduledDate],
+                    notes = row[Tasks.notes],
+                    mbl = row[Tasks.mbl],
+                    hbl = row[Tasks.hbl],
+                    freightCert = row[Tasks.freightCert],
+                    foCert = row[Tasks.foCert],
+                    bunkerCert = row[Tasks.bunkerCert],
+                    linkedTaskId = row[Tasks.linkedTaskId]?.value?.toString(),
+                    receiptPhotoUrl = row[Tasks.receiptPhotoUrl],
+                    photoRequired = row[Tasks.photoRequired],
+                    createdAt = row[Tasks.createdAt].toString(),
+                    updatedAt = row[Tasks.updatedAt].toString()
+            )
+
+    private fun rowToTaskWithNames(row: ResultRow) =
+            Task(
+                    id = row[Tasks.id].value.toString(),
+                    organizationId = row[Tasks.organizationId].value.toString(),
+                    type = com.cadetex.model.TaskType.valueOf(row[Tasks.type]),
+                    referenceNumber = row[Tasks.referenceNumber],
+                    clientId = row[Tasks.clientId]?.value?.toString(),
+                    clientName = row[Clients.name],
+                    providerId = row[Tasks.providerId]?.value?.toString(),
+                    providerName = row[Providers.name],
+                    addressOverride = row[Tasks.addressOverride],
+                    city = row[Tasks.city],
+                    province = row[Tasks.province],
+                    contact = row[Tasks.contact],
+                    courierId = row[Tasks.courierId]?.value?.toString(),
+                    courierName = row[Couriers.name],
                     status = TaskStatus.valueOf(row[Tasks.status]),
                     priority = com.cadetex.model.TaskPriority.valueOf(row[Tasks.priority]),
                     scheduledDate = row[Tasks.scheduledDate],
