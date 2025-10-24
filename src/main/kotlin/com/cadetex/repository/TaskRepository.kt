@@ -91,98 +91,168 @@ class TaskRepository {
                     updatedAt = row[Tasks.updatedAt].toString()
             )
 
-    suspend fun allTasks(): List<Task> = newSuspendedTransaction {
-        Tasks.selectAll().map(::rowToTask)
-    }
 
     suspend fun tasksByOrganization(organizationId: String): List<Task> = newSuspendedTransaction {
         validateUUID(organizationId, "organization ID")
-        val tasks = Tasks.selectAll().where { Tasks.organizationId eq UUID.fromString(organizationId) }.map(::rowToTask)
         
-        // Enriquecer con nombres
-        tasks.map { task ->
-            var clientName: String? = null
-            var providerName: String? = null
-            
-            // Si tiene cliente, obtener nombre del cliente
-            if (task.clientId != null) {
-                clientName = Clients.selectAll()
-                    .where { Clients.id eq UUID.fromString(task.clientId) }
-                    .singleOrNull()?.get(Clients.name)
-            }
-            
-            // Si tiene proveedor, obtener nombre del proveedor
-            if (task.providerId != null) {
-                providerName = Providers.selectAll()
-                    .where { Providers.id eq UUID.fromString(task.providerId) }
-                    .singleOrNull()?.get(Providers.name)
-            }
-            
-            // Obtener nombre del cadete
-            val courierName = task.courierId?.let { courierId ->
-                Couriers.selectAll()
-                    .where { Couriers.id eq UUID.fromString(courierId) }
-                    .singleOrNull()?.get(Couriers.name)
-            }
-            
-            task.copy(
-                clientName = clientName,
-                providerName = providerName,
-                courierName = courierName
+        Tasks
+            .leftJoin(Clients, { Tasks.clientId }, { Clients.id })
+            .leftJoin(Providers, { Tasks.providerId }, { Providers.id })
+            .leftJoin(Couriers, { Tasks.courierId }, { Couriers.id })
+            .select(
+                Tasks.id,
+                Tasks.organizationId,
+                Tasks.type,
+                Tasks.referenceNumber,
+                Tasks.clientId,
+                Clients.name,
+                Tasks.providerId,
+                Providers.name,
+                Tasks.addressOverride,
+                Tasks.city,
+                Tasks.province,
+                Tasks.contact,
+                Tasks.courierId,
+                Couriers.name,
+                Tasks.status,
+                Tasks.priority,
+                Tasks.scheduledDate,
+                Tasks.notes,
+                Tasks.mbl,
+                Tasks.hbl,
+                Tasks.freightCert,
+                Tasks.foCert,
+                Tasks.bunkerCert,
+                Tasks.linkedTaskId,
+                Tasks.receiptPhotoUrl,
+                Tasks.photoRequired,
+                Tasks.createdAt,
+                Tasks.updatedAt
             )
-        }
+            .where { Tasks.organizationId eq UUID.fromString(organizationId) }
+            .map(::rowToTaskWithJoins)
     }
 
     suspend fun tasksByCourier(courierId: String): List<Task> = newSuspendedTransaction {
         validateUUID(courierId, "courier ID")
-        val tasks = Tasks.selectAll().where { Tasks.courierId eq UUID.fromString(courierId) }.map(::rowToTask)
         
-        // Enriquecer con nombres
-        tasks.map { task ->
-            val clientName = task.clientId?.let { clientId ->
-                Clients.selectAll().where { Clients.id eq UUID.fromString(clientId) }.singleOrNull()?.get(Clients.name)
-            }
-            val providerName = task.providerId?.let { providerId ->
-                Providers.selectAll().where { Providers.id eq UUID.fromString(providerId) }.singleOrNull()?.get(Providers.name)
-            }
-            val courierName = task.courierId?.let { courierId ->
-                Couriers.selectAll().where { Couriers.id eq UUID.fromString(courierId) }.singleOrNull()?.get(Couriers.name)
-            }
-            
-            task.copy(
-                clientName = clientName,
-                providerName = providerName,
-                courierName = courierName
+        Tasks
+            .leftJoin(Clients, { Tasks.clientId }, { Clients.id })
+            .leftJoin(Providers, { Tasks.providerId }, { Providers.id })
+            .leftJoin(Couriers, { Tasks.courierId }, { Couriers.id })
+            .select(
+                Tasks.id,
+                Tasks.organizationId,
+                Tasks.type,
+                Tasks.referenceNumber,
+                Tasks.clientId,
+                Clients.name,
+                Tasks.providerId,
+                Providers.name,
+                Tasks.addressOverride,
+                Tasks.city,
+                Tasks.province,
+                Tasks.contact,
+                Tasks.courierId,
+                Couriers.name,
+                Tasks.status,
+                Tasks.priority,
+                Tasks.scheduledDate,
+                Tasks.notes,
+                Tasks.mbl,
+                Tasks.hbl,
+                Tasks.freightCert,
+                Tasks.foCert,
+                Tasks.bunkerCert,
+                Tasks.linkedTaskId,
+                Tasks.receiptPhotoUrl,
+                Tasks.photoRequired,
+                Tasks.createdAt,
+                Tasks.updatedAt
             )
-        }
+            .where { Tasks.courierId eq UUID.fromString(courierId) }
+            .map(::rowToTaskWithJoins)
     }
 
     suspend fun tasksByStatus(status: TaskStatus): List<Task> = newSuspendedTransaction {
-        Tasks.selectAll().where { Tasks.status eq status.name }.map(::rowToTask)
+        Tasks
+            .leftJoin(Clients, { Tasks.clientId }, { Clients.id })
+            .leftJoin(Providers, { Tasks.providerId }, { Providers.id })
+            .leftJoin(Couriers, { Tasks.courierId }, { Couriers.id })
+            .select(
+                Tasks.id,
+                Tasks.organizationId,
+                Tasks.type,
+                Tasks.referenceNumber,
+                Tasks.clientId,
+                Clients.name,
+                Tasks.providerId,
+                Providers.name,
+                Tasks.addressOverride,
+                Tasks.city,
+                Tasks.province,
+                Tasks.contact,
+                Tasks.courierId,
+                Couriers.name,
+                Tasks.status,
+                Tasks.priority,
+                Tasks.scheduledDate,
+                Tasks.notes,
+                Tasks.mbl,
+                Tasks.hbl,
+                Tasks.freightCert,
+                Tasks.foCert,
+                Tasks.bunkerCert,
+                Tasks.linkedTaskId,
+                Tasks.receiptPhotoUrl,
+                Tasks.photoRequired,
+                Tasks.createdAt,
+                Tasks.updatedAt
+            )
+            .where { Tasks.status eq status.name }
+            .map(::rowToTaskWithJoins)
     }
 
     suspend fun findById(id: String): Task? = newSuspendedTransaction {
         validateUUID(id, "task ID")
-        val task = Tasks.selectAll().where { Tasks.id eq UUID.fromString(id) }.map(::rowToTask).singleOrNull()
         
-        // Enriquecer con nombres si la tarea existe
-        task?.let { t ->
-            val clientName = t.clientId?.let { clientId ->
-                Clients.selectAll().where { Clients.id eq UUID.fromString(clientId) }.singleOrNull()?.get(Clients.name)
-            }
-            val providerName = t.providerId?.let { providerId ->
-                Providers.selectAll().where { Providers.id eq UUID.fromString(providerId) }.singleOrNull()?.get(Providers.name)
-            }
-            val courierName = t.courierId?.let { courierId ->
-                Couriers.selectAll().where { Couriers.id eq UUID.fromString(courierId) }.singleOrNull()?.get(Couriers.name)
-            }
-            
-            t.copy(
-                clientName = clientName,
-                providerName = providerName,
-                courierName = courierName
+        Tasks
+            .leftJoin(Clients, { Tasks.clientId }, { Clients.id })
+            .leftJoin(Providers, { Tasks.providerId }, { Providers.id })
+            .leftJoin(Couriers, { Tasks.courierId }, { Couriers.id })
+            .select(
+                Tasks.id,
+                Tasks.organizationId,
+                Tasks.type,
+                Tasks.referenceNumber,
+                Tasks.clientId,
+                Clients.name,
+                Tasks.providerId,
+                Providers.name,
+                Tasks.addressOverride,
+                Tasks.city,
+                Tasks.province,
+                Tasks.contact,
+                Tasks.courierId,
+                Couriers.name,
+                Tasks.status,
+                Tasks.priority,
+                Tasks.scheduledDate,
+                Tasks.notes,
+                Tasks.mbl,
+                Tasks.hbl,
+                Tasks.freightCert,
+                Tasks.foCert,
+                Tasks.bunkerCert,
+                Tasks.linkedTaskId,
+                Tasks.receiptPhotoUrl,
+                Tasks.photoRequired,
+                Tasks.createdAt,
+                Tasks.updatedAt
             )
-        }
+            .where { Tasks.id eq UUID.fromString(id) }
+            .singleOrNull()
+            ?.let(::rowToTaskWithJoins)
     }
 
     suspend fun create(task: Task): Task = newSuspendedTransaction {
@@ -293,4 +363,36 @@ class TaskRepository {
     suspend fun delete(id: String): Boolean = newSuspendedTransaction {
         Tasks.deleteWhere { Tasks.id eq UUID.fromString(id) } > 0
     }
+
+    // Helper function to map Task with JOINs
+    private fun rowToTaskWithJoins(row: ResultRow) = Task(
+        id = row[Tasks.id].value.toString(),
+        organizationId = row[Tasks.organizationId].value.toString(),
+        type = com.cadetex.model.TaskType.valueOf(row[Tasks.type]),
+        referenceNumber = row[Tasks.referenceNumber],
+        clientId = row[Tasks.clientId]?.value?.toString(),
+        clientName = row[Clients.name],
+        providerId = row[Tasks.providerId]?.value?.toString(),
+        providerName = row[Providers.name],
+        addressOverride = row[Tasks.addressOverride],
+        city = row[Tasks.city],
+        province = row[Tasks.province],
+        contact = row[Tasks.contact],
+        courierId = row[Tasks.courierId]?.value?.toString(),
+        courierName = row[Couriers.name],
+        status = TaskStatus.valueOf(row[Tasks.status]),
+        priority = com.cadetex.model.TaskPriority.valueOf(row[Tasks.priority]),
+        scheduledDate = row[Tasks.scheduledDate],
+        notes = row[Tasks.notes],
+        mbl = row[Tasks.mbl],
+        hbl = row[Tasks.hbl],
+        freightCert = row[Tasks.freightCert],
+        foCert = row[Tasks.foCert],
+        bunkerCert = row[Tasks.bunkerCert],
+        linkedTaskId = row[Tasks.linkedTaskId]?.value?.toString(),
+        receiptPhotoUrl = row[Tasks.receiptPhotoUrl],
+        photoRequired = row[Tasks.photoRequired],
+        createdAt = row[Tasks.createdAt].toString(),
+        updatedAt = row[Tasks.updatedAt].toString()
+    )
 }

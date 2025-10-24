@@ -19,14 +19,10 @@ fun Route.taskRoutes() {
         authenticate("jwt") {
             get {
                 val userData = call.getUserData()
-                if (userData?.role == "SUPERADMIN") {
-                    val tasks = taskRepository.allTasks()
-                    call.respond(tasks)
-                } else {
-                    // Los orgadmin solo ven tareas de su organización
-                    val tasks = taskRepository.tasksByOrganization(userData?.organizationId ?: "")
-                    call.respond(tasks)
-                }
+                val organizationId = userData?.organizationId ?: return@get call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "No se pudo obtener la organización del usuario"))
+                
+                val tasks = taskRepository.tasksByOrganization(organizationId)
+                call.respond(tasks)
             }
 
             get("/{id}") {
@@ -59,15 +55,11 @@ fun Route.taskRoutes() {
             get("/courier/{courierId}") {
                 val courierId = call.parameters["courierId"] ?: return@get call.respond(HttpStatusCode.BadRequest)
                 val userData = call.getUserData()
-                val tasks = taskRepository.tasksByCourier(courierId)
+                val organizationId = userData?.organizationId ?: return@get call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "No se pudo obtener la organización del usuario"))
                 
-                // Filtrar por organización si no es superadmin
-                if (userData?.role != "SUPERADMIN") {
-                    val filteredTasks = tasks.filter { it.organizationId == userData?.organizationId }
-                    call.respond(filteredTasks)
-                } else {
-                    call.respond(tasks)
-                }
+                val tasks = taskRepository.tasksByCourier(courierId)
+                val filteredTasks = tasks.filter { it.organizationId == organizationId }
+                call.respond(filteredTasks)
             }
 
             get("/status/{status}") {
@@ -75,15 +67,11 @@ fun Route.taskRoutes() {
                 try {
                     val status = TaskStatus.valueOf(statusStr.uppercase())
                     val userData = call.getUserData()
-                    val tasks = taskRepository.tasksByStatus(status)
+                    val organizationId = userData?.organizationId ?: return@get call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "No se pudo obtener la organización del usuario"))
                     
-                    // Filtrar por organización si no es superadmin
-                    if (userData?.role != "SUPERADMIN") {
-                        val filteredTasks = tasks.filter { it.organizationId == userData?.organizationId }
-                        call.respond(filteredTasks)
-                    } else {
-                        call.respond(tasks)
-                    }
+                    val tasks = taskRepository.tasksByStatus(status)
+                    val filteredTasks = tasks.filter { it.organizationId == organizationId }
+                    call.respond(filteredTasks)
                 } catch (e: IllegalArgumentException) {
                     call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Invalid status"))
                 }
