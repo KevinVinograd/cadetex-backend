@@ -130,6 +130,7 @@ class TaskRepository {
                 Tasks.updatedAt
             )
             .where { Tasks.organizationId eq UUID.fromString(organizationId) }
+            .orderBy(Tasks.createdAt to SortOrder.DESC)
             .map(::rowToTaskWithJoins)
     }
 
@@ -171,6 +172,7 @@ class TaskRepository {
                 Tasks.updatedAt
             )
             .where { Tasks.courierId eq UUID.fromString(courierId) }
+            .orderBy(Tasks.createdAt to SortOrder.DESC)
             .map(::rowToTaskWithJoins)
     }
 
@@ -210,6 +212,7 @@ class TaskRepository {
                 Tasks.updatedAt
             )
             .where { Tasks.status eq status.name }
+            .orderBy(Tasks.createdAt to SortOrder.DESC)
             .map(::rowToTaskWithJoins)
     }
 
@@ -326,8 +329,13 @@ class TaskRepository {
                             updateRequest.contact?.let { newContact ->
                                 row[Tasks.contact] = newContact
                             }
+                            // Handle courierId assignment and unassignment
                             updateRequest.courierId?.let { newCourierId ->
                                 row[Tasks.courierId] = UUID.fromString(newCourierId)
+                            }
+                            // Handle explicit unassignment
+                            if (updateRequest.unassignCourier == true) {
+                                row[Tasks.courierId] = null
                             }
                             updateRequest.status?.let { newStatus ->
                                 row[Tasks.status] = newStatus.name

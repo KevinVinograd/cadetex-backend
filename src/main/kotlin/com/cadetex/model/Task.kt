@@ -87,6 +87,7 @@ data class UpdateTaskRequest(
     val province: String? = null,
     val contact: String? = null,
     val courierId: String? = null,
+    val unassignCourier: Boolean? = null, // Explicit flag to unassign courier
     val status: TaskStatus? = null,
     val priority: TaskPriority? = null,
     val scheduledDate: String? = null,
