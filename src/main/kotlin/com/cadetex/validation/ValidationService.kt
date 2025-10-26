@@ -201,16 +201,6 @@ object ValidationService {
         return errors
     }
 
-    fun validateUpdateTaskPhotoRequest(request: UpdateTaskPhotoRequest): List<String> {
-        val errors = mutableListOf<String>()
-        
-        if (request.photoUrl != null && request.photoUrl.isBlank()) {
-            errors.add("photoUrl cannot be blank")
-        }
-        
-        return errors
-    }
-
     fun validateCreateTaskHistoryRequest(request: CreateTaskHistoryRequest): List<String> {
         val errors = mutableListOf<String>()
         

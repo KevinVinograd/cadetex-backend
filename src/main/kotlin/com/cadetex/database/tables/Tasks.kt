@@ -19,6 +19,7 @@ object Tasks : UUIDTable("tasks") {
     val priority = varchar("priority", 10)
     val scheduledDate = varchar("scheduled_date", 10).nullable()
     val notes = text("notes").nullable()
+    val courierNotes = text("courier_notes").nullable()
     val mbl = varchar("mbl", 50).nullable()
     val hbl = varchar("hbl", 50).nullable()
     val freightCert = bool("freight_cert").default(false)

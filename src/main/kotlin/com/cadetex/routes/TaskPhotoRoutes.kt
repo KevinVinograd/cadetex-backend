@@ -98,42 +98,6 @@ fun Route.taskPhotoRoutes() {
                 }
             }
 
-            put("/{id}") {
-                val id = call.parameters["id"] ?: return@put call.respond(HttpStatusCode.BadRequest)
-                val userData = call.getUserData()
-                val existingPhoto = taskPhotoRepository.findById(id)
-                
-                if (existingPhoto == null) {
-                    call.respond(HttpStatusCode.NotFound)
-                    return@put
-                }
-                
-                val task = taskRepository.findById(existingPhoto.taskId)
-                if (task == null) {
-                    call.respond(HttpStatusCode.NotFound)
-                    return@put
-                }
-                
-                // Verificar permisos
-                if (userData?.role == "SUPERADMIN" || 
-                    (userData?.role == "ORGADMIN" && task.organizationId == userData.organizationId) ||
-                    (userData?.role == "COURIER" && task.courierId == userData.userId)) {
-                    try {
-                        val request = call.receive<UpdateTaskPhotoRequest>()
-                        val taskPhoto = taskPhotoRepository.update(id, request)
-                        if (taskPhoto != null) {
-                            call.respond(taskPhoto)
-                        } else {
-                            call.respond(HttpStatusCode.NotFound)
-                        }
-                    } catch (e: Exception) {
-                        call.respond(HttpStatusCode.BadRequest, mapOf("error" to e.message))
-                    }
-                } else {
-                    call.respond(HttpStatusCode.Forbidden, mapOf("error" to "No tienes permisos para actualizar esta foto"))
-                }
-            }
-
             delete("/{id}") {
                 val id = call.parameters["id"] ?: return@delete call.respond(HttpStatusCode.BadRequest)
                 val userData = call.getUserData()

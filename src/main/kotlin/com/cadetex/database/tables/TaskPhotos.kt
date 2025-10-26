@@ -7,7 +7,6 @@ import org.jetbrains.exposed.sql.kotlin.datetime.timestamp
 object TaskPhotos : UUIDTable("task_photos") {
     val taskId = reference("task_id", Tasks.id, onDelete = ReferenceOption.CASCADE)
     val photoUrl = text("photo_url")
-    val description = text("description").nullable()
-    val uploadedAt = timestamp("uploaded_at")
-    val updatedAt = timestamp("updated_at")
+    val photoType = varchar("photo_type", 20)
+    val createdAt = timestamp("created_at")
 }

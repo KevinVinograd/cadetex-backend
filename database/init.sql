@@ -86,6 +86,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     priority VARCHAR(10) NOT NULL CHECK (priority IN ('NORMAL', 'URGENT')),
     scheduled_date VARCHAR(10),
     notes TEXT,
+    courier_notes TEXT,
     mbl VARCHAR(50),
     hbl VARCHAR(50),
     freight_cert BOOLEAN DEFAULT FALSE,

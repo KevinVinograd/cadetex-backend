@@ -42,6 +42,25 @@ fun Route.taskRoutes() {
                 }
             }
 
+            get("/{id}/photos") {
+                val id = call.parameters["id"] ?: return@get call.respond(HttpStatusCode.BadRequest)
+                val task = taskRepository.findById(id)
+                
+                if (task == null) {
+                    call.respond(HttpStatusCode.NotFound)
+                    return@get
+                }
+                
+                val userData = call.getUserData()
+                if (userData?.role == "SUPERADMIN" || task.organizationId == userData?.organizationId) {
+                    val taskPhotoRepo = com.cadetex.repository.TaskPhotoRepository()
+                    val photos = taskPhotoRepo.findByTaskId(id)
+                    call.respond(photos)
+                } else {
+                    call.respond(HttpStatusCode.Forbidden, mapOf("error" to "No tienes permisos para ver fotos de esta tarea"))
+                }
+            }
+
             get("/organization/{organizationId}") {
                 val organizationId = call.parameters["organizationId"] ?: return@get call.respond(HttpStatusCode.BadRequest)
                 val userData = call.getUserData()
@@ -216,47 +235,56 @@ fun Route.taskRoutes() {
                     try {
                         val multipartData = call.receiveMultipart()
                         var photoUrl: String? = null
+                        var isReceipt = false
                         
                         multipartData.forEachPart { part ->
                             when (part) {
                                 is PartData.FileItem -> {
                                     if (part.name == "photo") {
-                                        // Por ahora, guardamos la foto como base64 en la base de datos
-                                        // En el futuro se puede cambiar a S3
                                         val bytes = part.streamProvider().readBytes()
                                         val base64 = java.util.Base64.getEncoder().encodeToString(bytes)
                                         photoUrl = "data:image/jpeg;base64,$base64"
                                     }
                                 }
-                                is PartData.BinaryChannelItem -> {
-                                    // Handle binary channel items if needed
-                                }
-                                is PartData.BinaryItem -> {
-                                    // Handle binary items if needed
-                                }
                                 is PartData.FormItem -> {
-                                    // Handle form items if needed
+                                    if (part.name == "isReceipt") {
+                                        isReceipt = part.value.toBoolean()
+                                    }
                                 }
+                                is PartData.BinaryChannelItem -> {}
+                                is PartData.BinaryItem -> {}
                             }
                             part.dispose()
                         }
                         
                         if (photoUrl != null) {
-                            // Actualizar la tarea con la URL de la foto
-                            val updateRequest = UpdateTaskRequest(receiptPhotoUrl = photoUrl)
-                            val updatedTask = taskRepository.update(id, updateRequest)
-                            
-                            if (updatedTask != null) {
-                                call.respond(mapOf("photoUrl" to photoUrl))
+                            // Si es la foto obligatoria (receipt), actualizar en la tarea
+                            if (isReceipt) {
+                                val updateRequest = UpdateTaskRequest(receiptPhotoUrl = photoUrl)
+                                val updatedTask = taskRepository.update(id, updateRequest)
+                                
+                                if (updatedTask != null) {
+                                    call.respond(mapOf("photoUrl" to photoUrl))
+                                } else {
+                                    call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "Error al guardar la foto"))
+                                }
                             } else {
-                                call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "Error al guardar la foto"))
+                                // Foto adicional: crear en task_photos
+                                val taskPhotoRepo = com.cadetex.repository.TaskPhotoRepository()
+                                val createRequest = com.cadetex.model.CreateTaskPhotoRequest(
+                                    taskId = id,
+                                    photoUrl = photoUrl,
+                                    photoType = "ADDITIONAL"
+                                )
+                                val createdPhoto = taskPhotoRepo.create(createRequest)
+                                call.respond(mapOf("photoUrl" to photoUrl, "photoId" to createdPhoto.id))
                             }
                         } else {
                             call.respond(HttpStatusCode.BadRequest, mapOf("error" to "No se encontró archivo de foto"))
                         }
                     } catch (e: Exception) {
                         logger.error("Error uploading photo for task $id", e)
-                        call.respond(HttpStatusCode.BadRequest, mapOf("error" to e.message))
+                        call.respond(HttpStatusCode.BadRequest, mapOf("error" to (e.message ?: "Error desconocido")))
                     }
                 } else {
                     call.respond(HttpStatusCode.Forbidden, mapOf("error" to "No tienes permisos para subir fotos a esta tarea"))

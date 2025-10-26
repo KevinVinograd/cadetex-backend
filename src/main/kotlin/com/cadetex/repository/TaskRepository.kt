@@ -47,6 +47,7 @@ class TaskRepository {
                     priority = com.cadetex.model.TaskPriority.valueOf(row[Tasks.priority]),
                     scheduledDate = row[Tasks.scheduledDate],
                     notes = row[Tasks.notes],
+                    courierNotes = row[Tasks.courierNotes],
                     mbl = row[Tasks.mbl],
                     hbl = row[Tasks.hbl],
                     freightCert = row[Tasks.freightCert],
@@ -79,6 +80,7 @@ class TaskRepository {
                     priority = com.cadetex.model.TaskPriority.valueOf(row[Tasks.priority]),
                     scheduledDate = row[Tasks.scheduledDate],
                     notes = row[Tasks.notes],
+                    courierNotes = row[Tasks.courierNotes],
                     mbl = row[Tasks.mbl],
                     hbl = row[Tasks.hbl],
                     freightCert = row[Tasks.freightCert],
@@ -347,6 +349,7 @@ class TaskRepository {
                                 row[Tasks.scheduledDate] = newScheduledDate
                             }
                             updateRequest.notes?.let { newNotes -> row[Tasks.notes] = newNotes }
+                            updateRequest.courierNotes?.let { newCourierNotes -> row[Tasks.courierNotes] = newCourierNotes }
                             updateRequest.photoRequired?.let { newPhotoRequired ->
                                 row[Tasks.photoRequired] = newPhotoRequired
                             }
