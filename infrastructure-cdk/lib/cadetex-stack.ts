@@ -145,7 +145,7 @@ SERVICEEOF
       allocatedStorage: 20,
       maxAllocatedStorage: 100,
       storageType: rds.StorageType.GP3,
-      databaseName: 'cadetex',
+      databaseName: 'kdt',
       publiclyAccessible: true, // ✅ PÚBLICA para testing (cambiar a false en producción)
       multiAz: false,
       backupRetention: cdk.Duration.days(7),

@@ -22,7 +22,7 @@ abstract class IntegrationTestBase {
     @BeforeAll
     fun globalSetup() {
         pg = PostgreSQLContainer("postgres:16-alpine").apply {
-            withDatabaseName("cadetex")
+            withDatabaseName("kdt")
             withUsername("test")
             withPassword("test")
             start()

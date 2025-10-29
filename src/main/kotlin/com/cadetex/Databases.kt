@@ -22,7 +22,7 @@ fun Application.configureDatabases() {
     val jdbcFromConfig = appCfg.propertyOrNull("database.jdbcUrl")?.getString()
     val host = appCfg.propertyOrNull("database.host")?.getString() ?: "localhost"
     val port = appCfg.propertyOrNull("database.port")?.getString()?.toIntOrNull() ?: 5432
-    val name = appCfg.propertyOrNull("database.name")?.getString() ?: "cadetex"
+    val name = appCfg.propertyOrNull("database.name")?.getString() ?: "kdt"
     val userConf = appCfg.propertyOrNull("database.user")?.getString() ?: "cadetex_user"
     val passConf = appCfg.propertyOrNull("database.password")?.getString() ?: "cadetex_password"
     val poolSizeConf = appCfg.propertyOrNull("database.maxPoolSize")?.getString()?.toIntOrNull()

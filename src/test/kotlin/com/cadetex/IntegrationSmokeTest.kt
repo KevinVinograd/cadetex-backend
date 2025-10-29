@@ -16,7 +16,7 @@ class IntegrationSmokeTest {
     @Test
     fun `app boots with Testcontainers Postgres and serves root`() = testApplication {
         val container = PostgreSQLContainer("postgres:16-alpine").apply {
-            withDatabaseName("cadetex")
+            withDatabaseName("kdt")
             withUsername("test")
             withPassword("test")
             start()
