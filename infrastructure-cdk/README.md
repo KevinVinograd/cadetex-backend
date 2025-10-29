@@ -235,15 +235,67 @@ aws cloudformation describe-stack-events \
 
 ## Siguiente Paso
 
-Después de desplegar la infraestructura, continua con el deployment de las aplicaciones:
-
+### Backend - Deploy manual (EC2)
 ```bash
-# Backend
-cd ../cadetex-backend
-./deploy.sh
+# En EC2 (SSH)
+sudo mkdir -p /opt/cadetex-backend && sudo chown ec2-user:ec2-user /opt/cadetex-backend
 
-# Frontend
-cd ../cadetex-frontend
-./deploy.sh
+# En tu PC
+scp -i ~/.ssh/cadetex-backend-key cadetex-backend/build/libs/cadetex-backend-v2-all.jar ec2-user@<EC2_IP>:/opt/cadetex-backend/
+
+# En EC2 (SSH) - application.conf
+sudo tee /opt/cadetex-backend/application.conf > /dev/null << 'EOF'
+ktor {
+  development = false
+  deployment { port = 8080 }
+  application { modules = [ com.cadetex.ApplicationKt.module ] }
+}
+
+database {
+  host = "<RDS_ENDPOINT>"
+  port = 5432
+  name = "cadetex"
+  user = "postgres"
+  password = "<PASSWORD>"
+  maxPoolSize = 10
+}
+EOF
+
+# Service systemd
+sudo tee /etc/systemd/system/cadetex-backend.service > /dev/null << 'EOF'
+[Unit]
+Description=Cadetex Backend
+After=network.target
+
+[Service]
+Type=simple
+User=ec2-user
+WorkingDirectory=/opt/cadetex-backend
+ExecStart=/usr/bin/java -Dconfig.file=/opt/cadetex-backend/application.conf -jar /opt/cadetex-backend/cadetex-backend-v2-all.jar
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo systemctl daemon-reload && sudo systemctl enable cadetex-backend && sudo systemctl restart cadetex-backend
+
+# Logs
+sudo journalctl -u cadetex-backend -n 100 --no-pager
+```
+
+Seed de datos (opcional):
+```bash
+psql -h <RDS_ENDPOINT> -U postgres -d cadetex -f cadetex-backend/database/insert-demo-data.sql
+```
+
+### Frontend - Build y deploy (S3/CloudFront)
+```bash
+cd cadetex-frontend
+export VITE_API_BASE_URL="http://<EC2_IP>:8080"
+npm run build
+aws s3 sync dist/ s3://<S3_BUCKET>/ --delete --region us-east-1
+aws cloudfront create-invalidation --distribution-id <DIST_ID> --paths "/*" --region us-east-1
 ```
 
