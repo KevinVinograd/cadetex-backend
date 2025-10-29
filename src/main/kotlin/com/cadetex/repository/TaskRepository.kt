@@ -378,6 +378,68 @@ class TaskRepository {
         Tasks.deleteWhere { Tasks.id eq UUID.fromString(id) } > 0
     }
 
+    suspend fun tasksFiltered(
+        organizationId: String,
+        courierId: String? = null,
+        unassigned: Boolean = false,
+        statuses: List<TaskStatus> = emptyList()
+    ): List<Task> = newSuspendedTransaction {
+        validateUUID(organizationId, "organization ID")
+        courierId?.let { validateUUID(it, "courier ID") }
+        
+        var query = Tasks
+            .leftJoin(Clients, { Tasks.clientId }, { Clients.id })
+            .leftJoin(Providers, { Tasks.providerId }, { Providers.id })
+            .leftJoin(Couriers, { Tasks.courierId }, { Couriers.id })
+            .select(
+                Tasks.id,
+                Tasks.organizationId,
+                Tasks.type,
+                Tasks.referenceNumber,
+                Tasks.clientId,
+                Clients.name,
+                Tasks.providerId,
+                Providers.name,
+                Tasks.addressOverride,
+                Tasks.city,
+                Tasks.province,
+                Tasks.contact,
+                Tasks.courierId,
+                Couriers.name,
+                Tasks.status,
+                Tasks.priority,
+                Tasks.scheduledDate,
+                Tasks.notes,
+                Tasks.mbl,
+                Tasks.hbl,
+                Tasks.freightCert,
+                Tasks.foCert,
+                Tasks.bunkerCert,
+                Tasks.linkedTaskId,
+                Tasks.receiptPhotoUrl,
+                Tasks.photoRequired,
+                Tasks.createdAt,
+                Tasks.updatedAt
+            )
+            .where { Tasks.organizationId eq UUID.fromString(organizationId) }
+        
+        // Aplicar filtros
+        if (courierId != null) {
+            query = query.andWhere { Tasks.courierId eq UUID.fromString(courierId) }
+        } else if (unassigned) {
+            query = query.andWhere { Tasks.courierId.isNull() }
+        }
+        
+        if (statuses.isNotEmpty()) {
+            val statusNames = statuses.map { it.name }
+            query = query.andWhere { Tasks.status.inList(statusNames) }
+        }
+        
+        query
+            .orderBy(Tasks.createdAt to SortOrder.DESC)
+            .map(::rowToTaskWithJoins)
+    }
+
     // Helper function to map Task with JOINs
     private fun rowToTaskWithJoins(row: ResultRow) = Task(
         id = row[Tasks.id].value.toString(),

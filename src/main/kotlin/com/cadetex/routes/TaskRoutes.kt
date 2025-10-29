@@ -82,6 +82,33 @@ fun Route.taskRoutes() {
                 call.respond(filteredTasks)
             }
 
+            get("/filtered") {
+                val userData = call.getUserData()
+                val organizationId = userData?.organizationId ?: return@get call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "No se pudo obtener la organización del usuario"))
+                
+                // Parámetros opcionales de filtro
+                val queryParams = call.request.queryParameters
+                val courierId = queryParams["courierId"]
+                val unassigned = queryParams["unassigned"]?.toBoolean() == true
+                val statusStrings = queryParams.getAll("status") ?: emptyList()
+                
+                // Convertir strings a enums TaskStatus
+                val statuses = statusStrings.mapNotNull { 
+                    try { TaskStatus.valueOf(it.uppercase()) } 
+                    catch (e: IllegalArgumentException) { null }
+                }
+                
+                // Usar el repositorio para filtrar en la BD
+                val filteredTasks = taskRepository.tasksFiltered(
+                    organizationId = organizationId,
+                    courierId = courierId,
+                    unassigned = unassigned,
+                    statuses = statuses
+                )
+                
+                call.respond(filteredTasks)
+            }
+
             get("/status/{status}") {
                 val statusStr = call.parameters["status"] ?: return@get call.respond(HttpStatusCode.BadRequest)
                 try {
