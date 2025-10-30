@@ -91,7 +91,7 @@ class TaskPhotosIntegrationTest : IntegrationTestBase() {
         val upd = client.put("/task-photos/$photoId") {
             header(HttpHeaders.Authorization, "Bearer $token")
             contentType(ContentType.Application.Json)
-            setBody("""{"description":"desc2"}""")
+            setBody("""{"photoUrl":"http://p/z-updated.png","photoType":"RECEIPT"}""")
         }
         assertEquals(HttpStatusCode.OK, upd.status)
 

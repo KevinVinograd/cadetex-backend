@@ -2,173 +2,195 @@ package com.cadetex.repository
 
 import com.cadetex.database.tables.Couriers
 import com.cadetex.model.Courier
-import com.cadetex.model.CreateCourierRequest
-import com.cadetex.model.UpdateCourierRequest
-import java.util.*
-import kotlinx.datetime.Clock
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
-import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
+import java.util.*
 
+/**
+ * Repository simplificado: solo queries simples
+ * NO maneja transacciones - debe ser llamado desde dentro de una transacción (en los Services)
+ * Toda la lógica de negocio está en CourierService
+ */
 class CourierRepository {
 
-    private fun isValidUUID(uuidString: String): Boolean {
-        return try {
-            UUID.fromString(uuidString)
-            true
-        } catch (e: IllegalArgumentException) {
-            false
-        }
+    /**
+     * Buscar courier por ID
+     * Usa índice: id es PRIMARY KEY (automático)
+     * Debe ejecutarse dentro de una transacción activa
+     */
+    fun findById(id: UUID): Courier? {
+        return Couriers.selectAll()
+            .where { Couriers.id eq id }
+            .map(::rowToCourier)
+            .singleOrNull()
     }
 
-    private fun validateUUID(uuidString: String, fieldName: String) {
-        if (!isValidUUID(uuidString)) {
-            throw IllegalArgumentException("Invalid UUID format for $fieldName: $uuidString")
-        }
+    /**
+     * Buscar couriers por organización
+     * Usa índice: idx_couriers_organization_id
+     * Debe ejecutarse dentro de una transacción activa
+     */
+    fun findByOrganization(organizationId: UUID): List<Courier> {
+        return Couriers.selectAll()
+            .where { Couriers.organizationId eq organizationId }
+            .map(::rowToCourier)
     }
 
-
-    suspend fun findById(id: String): Courier? = newSuspendedTransaction {
-        validateUUID(id, "courier ID")
-        Couriers.selectAll()
-                .where { Couriers.id eq UUID.fromString(id) }
-                .map(::rowToCourier)
-                .singleOrNull()
+    /**
+     * Buscar couriers activos por organización
+     * Usa índices: idx_couriers_organization_id, idx_couriers_org_active
+     * Debe ejecutarse dentro de una transacción activa
+     */
+    fun findActiveByOrganization(organizationId: UUID): List<Courier> {
+        return Couriers.selectAll()
+            .where {
+                (Couriers.organizationId eq organizationId) and
+                (Couriers.isActive eq true)
+            }
+            .map(::rowToCourier)
     }
 
-    suspend fun findByOrganization(organizationId: String): List<Courier> =
-            newSuspendedTransaction {
-                validateUUID(organizationId, "organization ID")
-                Couriers.selectAll()
-                        .where { Couriers.organizationId eq UUID.fromString(organizationId) }
-                        .map(::rowToCourier)
+    /**
+     * Buscar por nombre
+     * Usa índice: idx_couriers_organization_id
+     * Debe ejecutarse dentro de una transacción activa
+     */
+    fun searchByName(organizationId: UUID, name: String): List<Courier> {
+        return Couriers.selectAll()
+            .where {
+                (Couriers.organizationId eq organizationId) and
+                (Couriers.name like "%$name%")
             }
+            .map(::rowToCourier)
+    }
 
-    suspend fun findActiveByOrganization(organizationId: String): List<Courier> =
-            newSuspendedTransaction {
-                validateUUID(organizationId, "organization ID")
-                Couriers.selectAll()
-                        .where {
-                            (Couriers.organizationId eq UUID.fromString(organizationId)) and
-                                    (Couriers.isActive eq true)
-                        }
-                        .map(::rowToCourier)
+    /**
+     * Buscar por teléfono
+     * Usa índice: idx_couriers_organization_id
+     * Debe ejecutarse dentro de una transacción activa
+     */
+    fun searchByPhone(organizationId: UUID, phoneNumber: String): List<Courier> {
+        return Couriers.selectAll()
+            .where {
+                (Couriers.organizationId eq organizationId) and
+                (Couriers.phoneNumber like "%$phoneNumber%")
             }
+            .map(::rowToCourier)
+    }
 
-    suspend fun searchByName(organizationId: String, name: String): List<Courier> =
-            newSuspendedTransaction {
-                validateUUID(organizationId, "organization ID")
-                Couriers.selectAll()
-                        .where {
-                            (Couriers.organizationId eq UUID.fromString(organizationId)) and
-                                    (Couriers.name like "%$name%")
-                        }
-                        .map(::rowToCourier)
-            }
+    /**
+     * Buscar por userId
+     * Debe ejecutarse dentro de una transacción activa
+     */
+    fun findByUserId(userId: UUID): Courier? {
+        return Couriers.selectAll()
+            .where { Couriers.userId eq userId }
+            .map(::rowToCourier)
+            .singleOrNull()
+    }
 
-    suspend fun searchByPhone(organizationId: String, phoneNumber: String): List<Courier> =
-            newSuspendedTransaction {
-                validateUUID(organizationId, "organization ID")
-                Couriers.selectAll()
-                        .where {
-                            (Couriers.organizationId eq UUID.fromString(organizationId)) and
-                                    (Couriers.phoneNumber like "%$phoneNumber%")
-                        }
-                        .map(::rowToCourier)
-            }
+    /**
+     * Buscar couriers con cuentas de usuario
+     * Debe ejecutarse dentro de una transacción activa
+     */
+    fun findCouriersWithUserAccounts(): List<Courier> {
+        return Couriers.selectAll()
+            .where { Couriers.userId.isNotNull() }
+            .map(::rowToCourier)
+    }
 
-    suspend fun create(request: CreateCourierRequest): Courier = newSuspendedTransaction {
-        validateUUID(request.organizationId, "organization ID")
-        request.userId?.let { validateUUID(it, "user ID") }
+    /**
+     * Buscar couriers sin cuentas de usuario
+     * Debe ejecutarse dentro de una transacción activa
+     */
+    fun findCouriersWithoutUserAccounts(): List<Courier> {
+        return Couriers.selectAll()
+            .where { Couriers.userId.isNull() }
+            .map(::rowToCourier)
+    }
 
-        val now = Clock.System.now()
+    /**
+     * Insertar nuevo courier
+     * Retorna el ID insertado
+     * Debe ejecutarse dentro de una transacción activa
+     */
+    fun insert(
+        userId: UUID? = null,
+        organizationId: UUID,
+        name: String,
+        phoneNumber: String,
+        address: String? = null,
+        vehicleType: String? = null,
+        isActive: Boolean = true,
+        createdAt: kotlinx.datetime.Instant,
+        updatedAt: kotlinx.datetime.Instant
+    ): UUID {
         val id = UUID.randomUUID()
 
         Couriers.insert {
             it[Couriers.id] = id
-            it[userId] = request.userId?.let { UUID.fromString(it) }
-            it[organizationId] = UUID.fromString(request.organizationId)
-            it[name] = request.name
-            it[phoneNumber] = request.phoneNumber
-            it[address] = request.address
-            it[vehicleType] = request.vehicleType
-            it[isActive] = true
-            it[createdAt] = now
-            it[updatedAt] = now
+            it[Couriers.userId] = userId
+            it[Couriers.organizationId] = organizationId
+            it[Couriers.name] = name
+            it[Couriers.phoneNumber] = phoneNumber
+            it[Couriers.address] = address
+            it[Couriers.vehicleType] = vehicleType
+            it[Couriers.isActive] = isActive
+            it[Couriers.createdAt] = createdAt
+            it[Couriers.updatedAt] = updatedAt
         }
 
-        Courier(
-                id = id.toString(),
-                userId = request.userId,
-                organizationId = request.organizationId,
-                name = request.name,
-                phoneNumber = request.phoneNumber,
-                address = request.address,
-                vehicleType = request.vehicleType,
-                isActive = true,
-                createdAt = now.toString(),
-                updatedAt = now.toString()
-        )
+        return id
     }
 
-    suspend fun update(id: String, updateRequest: UpdateCourierRequest): Courier? =
-            newSuspendedTransaction {
-                validateUUID(id, "courier ID")
-                val now = Clock.System.now()
+    /**
+     * Actualizar courier existente
+     * Usa índice: id es PRIMARY KEY (automático)
+     * Debe ejecutarse dentro de una transacción activa
+     */
+    fun update(
+        id: UUID,
+        name: String? = null,
+        phoneNumber: String? = null,
+        address: String? = null,
+        vehicleType: String? = null,
+        isActive: Boolean? = null,
+        updatedAt: kotlinx.datetime.Instant
+    ): Boolean {
+        val updated = Couriers.update({ Couriers.id eq id }) { row ->
+            name?.let { row[Couriers.name] = it }
+            phoneNumber?.let { row[Couriers.phoneNumber] = it }
+            address?.let { row[Couriers.address] = it }
+            vehicleType?.let { row[Couriers.vehicleType] = it }
+            isActive?.let { row[Couriers.isActive] = it }
+            row[Couriers.updatedAt] = updatedAt
+        }
 
-                val updated =
-                        Couriers.update({ Couriers.id eq UUID.fromString(id) }) { row ->
-                            updateRequest.name?.let { newName -> row[Couriers.name] = newName }
-                            updateRequest.phoneNumber?.let { newPhoneNumber ->
-                                row[Couriers.phoneNumber] = newPhoneNumber
-                            }
-                            updateRequest.address?.let { newAddress ->
-                                row[Couriers.address] = newAddress
-                            }
-                            updateRequest.vehicleType?.let { newVehicleType ->
-                                row[Couriers.vehicleType] = newVehicleType
-                            }
-                            updateRequest.isActive?.let { newIsActive ->
-                                row[Couriers.isActive] = newIsActive
-                            }
-                            row[Couriers.updatedAt] = now
-                        }
-
-                if (updated > 0) findById(id) else null
-            }
-
-    suspend fun findByUserId(userId: String): Courier? = newSuspendedTransaction {
-        validateUUID(userId, "user ID")
-        Couriers.selectAll()
-                .where { Couriers.userId eq UUID.fromString(userId) }
-                .map(::rowToCourier)
-                .singleOrNull()
+        return updated > 0
     }
 
-    suspend fun findCouriersWithUserAccounts(): List<Courier> = newSuspendedTransaction {
-        Couriers.selectAll().where { Couriers.userId.isNotNull() }.map(::rowToCourier)
+    /**
+     * Eliminar courier
+     * Usa índice: id es PRIMARY KEY (automático)
+     * Debe ejecutarse dentro de una transacción activa
+     */
+    fun delete(id: UUID): Boolean {
+        return Couriers.deleteWhere { Couriers.id eq id } > 0
     }
 
-    suspend fun findCouriersWithoutUserAccounts(): List<Courier> = newSuspendedTransaction {
-        Couriers.selectAll().where { Couriers.userId.isNull() }.map(::rowToCourier)
-    }
-
-    suspend fun delete(id: String): Boolean = newSuspendedTransaction {
-        validateUUID(id, "courier ID")
-        Couriers.deleteWhere { Couriers.id eq UUID.fromString(id) } > 0
-    }
-
-    private fun rowToCourier(row: ResultRow) =
-            Courier(
-                    id = row[Couriers.id].value.toString(),
-                    userId = row[Couriers.userId]?.value?.toString(),
-                    organizationId = row[Couriers.organizationId].value.toString(),
-                    name = row[Couriers.name],
-                    phoneNumber = row[Couriers.phoneNumber],
-                    address = row[Couriers.address],
-                    vehicleType = row[Couriers.vehicleType],
-                    isActive = row[Couriers.isActive],
-                    createdAt = row[Couriers.createdAt].toString(),
-                    updatedAt = row[Couriers.updatedAt].toString()
-            )
+    /**
+     * Mapper de ResultRow a Courier
+     */
+    private fun rowToCourier(row: ResultRow) = Courier(
+        id = row[Couriers.id].value.toString(),
+        userId = row[Couriers.userId]?.value?.toString(),
+        organizationId = row[Couriers.organizationId].value.toString(),
+        name = row[Couriers.name],
+        phoneNumber = row[Couriers.phoneNumber],
+        address = row[Couriers.address],
+        vehicleType = row[Couriers.vehicleType],
+        isActive = row[Couriers.isActive],
+        createdAt = row[Couriers.createdAt].toString(),
+        updatedAt = row[Couriers.updatedAt].toString()
+    )
 }

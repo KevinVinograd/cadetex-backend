@@ -19,3 +19,9 @@ data class CreateTaskPhotoRequest(
     val photoType: String = "ADDITIONAL"
 )
 
+@Serializable
+data class UpdateTaskPhotoRequest(
+    val photoUrl: String? = null,
+    val photoType: String? = null
+)
+

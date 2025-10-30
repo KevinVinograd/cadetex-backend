@@ -2,7 +2,7 @@ package com.cadetex.routes
 
 import com.cadetex.auth.getUserData
 import com.cadetex.model.*
-import com.cadetex.repository.TaskRepository
+import com.cadetex.service.TaskService
 import io.ktor.http.*
 import io.ktor.http.content.*
 import io.ktor.server.application.*
@@ -13,7 +13,7 @@ import io.ktor.server.routing.*
 import org.slf4j.LoggerFactory
 
 fun Route.taskRoutes() {
-    val taskRepository = TaskRepository()
+    val taskService = TaskService()
     val logger = LoggerFactory.getLogger("TaskRoutes")
 
     route("/tasks") {
@@ -22,42 +22,51 @@ fun Route.taskRoutes() {
                 val userData = call.getUserData()
                 val organizationId = userData?.organizationId ?: return@get call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "No se pudo obtener la organización del usuario"))
                 
-                val tasks = taskRepository.tasksByOrganization(organizationId)
-                call.respond(tasks)
+                when (val result = taskService.findByOrganization(organizationId)) {
+                    is com.cadetex.service.Result.Success -> call.respond(result.value)
+                    is com.cadetex.service.Result.Error -> call.respond(HttpStatusCode.BadRequest, mapOf("error" to result.message))
+                }
             }
 
             get("/{id}") {
                 val id = call.parameters["id"] ?: return@get call.respond(HttpStatusCode.BadRequest)
-                val task = taskRepository.findById(id)
-                if (task != null) {
-                    val userData = call.getUserData()
-                    // Verificar que la tarea pertenece a la misma organización
-                    if (userData?.role == "SUPERADMIN" || task.organizationId == userData?.organizationId) {
-                        call.respond(task)
-                    } else {
-                        call.respond(HttpStatusCode.Forbidden, mapOf("error" to "No tienes permisos para ver esta tarea"))
+                
+                when (val result = taskService.findById(id)) {
+                    is com.cadetex.service.Result.Success -> {
+                        val task = result.value
+                        val userData = call.getUserData()
+                        if (userData?.role == "SUPERADMIN" || task.organizationId == userData?.organizationId) {
+                            call.respond(task)
+                        } else {
+                            call.respond(HttpStatusCode.Forbidden, mapOf("error" to "No tienes permisos para ver esta tarea"))
+                        }
                     }
-                } else {
-                    call.respond(HttpStatusCode.NotFound)
+                    is com.cadetex.service.Result.Error -> call.respond(HttpStatusCode.NotFound, mapOf("error" to result.message))
                 }
             }
 
             get("/{id}/photos") {
                 val id = call.parameters["id"] ?: return@get call.respond(HttpStatusCode.BadRequest)
-                val task = taskRepository.findById(id)
                 
-                if (task == null) {
-                    call.respond(HttpStatusCode.NotFound)
-                    return@get
-                }
-                
-                val userData = call.getUserData()
-                if (userData?.role == "SUPERADMIN" || task.organizationId == userData?.organizationId) {
-                    val taskPhotoRepo = com.cadetex.repository.TaskPhotoRepository()
-                    val photos = taskPhotoRepo.findByTaskId(id)
-                    call.respond(photos)
-                } else {
-                    call.respond(HttpStatusCode.Forbidden, mapOf("error" to "No tienes permisos para ver fotos de esta tarea"))
+                when (val result = taskService.findById(id)) {
+                    is com.cadetex.service.Result.Success -> {
+                        val task = result.value
+                        val userData = call.getUserData()
+                        if (userData?.role == "SUPERADMIN" || task.organizationId == userData?.organizationId) {
+                            val taskPhotoService = com.cadetex.service.TaskPhotoService()
+                            when (val photosResult = taskPhotoService.findByTaskId(id)) {
+                                is com.cadetex.service.Result.Success -> {
+                                    call.respond(photosResult.value)
+                                }
+                                is com.cadetex.service.Result.Error -> {
+                                    call.respond(HttpStatusCode.InternalServerError, mapOf("error" to photosResult.message))
+                                }
+                            }
+                        } else {
+                            call.respond(HttpStatusCode.Forbidden, mapOf("error" to "No tienes permisos para ver fotos de esta tarea"))
+                        }
+                    }
+                    is com.cadetex.service.Result.Error -> call.respond(HttpStatusCode.NotFound, mapOf("error" to result.message))
                 }
             }
 
@@ -65,8 +74,10 @@ fun Route.taskRoutes() {
                 val organizationId = call.parameters["organizationId"] ?: return@get call.respond(HttpStatusCode.BadRequest)
                 val userData = call.getUserData()
                 if (userData?.role == "SUPERADMIN" || userData?.organizationId == organizationId) {
-                    val tasks = taskRepository.tasksByOrganization(organizationId)
-                    call.respond(tasks)
+                    when (val result = taskService.findByOrganization(organizationId)) {
+                        is com.cadetex.service.Result.Success -> call.respond(result.value)
+                        is com.cadetex.service.Result.Error -> call.respond(HttpStatusCode.BadRequest, mapOf("error" to result.message))
+                    }
                 } else {
                     call.respond(HttpStatusCode.Forbidden, mapOf("error" to "No tienes permisos para ver tareas de esta organización"))
                 }
@@ -77,9 +88,13 @@ fun Route.taskRoutes() {
                 val userData = call.getUserData()
                 val organizationId = userData?.organizationId ?: return@get call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "No se pudo obtener la organización del usuario"))
                 
-                val tasks = taskRepository.tasksByCourier(courierId)
-                val filteredTasks = tasks.filter { it.organizationId == organizationId }
-                call.respond(filteredTasks)
+                when (val result = taskService.findByCourier(courierId)) {
+                    is com.cadetex.service.Result.Success -> {
+                        val filteredTasks = result.value.filter { it.organizationId == organizationId }
+                        call.respond(filteredTasks)
+                    }
+                    is com.cadetex.service.Result.Error -> call.respond(HttpStatusCode.BadRequest, mapOf("error" to result.message))
+                }
             }
 
             get("/filtered") {
@@ -98,15 +113,15 @@ fun Route.taskRoutes() {
                     catch (e: IllegalArgumentException) { null }
                 }
                 
-                // Usar el repositorio para filtrar en la BD
-                val filteredTasks = taskRepository.tasksFiltered(
+                when (val result = taskService.findFiltered(
                     organizationId = organizationId,
                     courierId = courierId,
                     unassigned = unassigned,
                     statuses = statuses
-                )
-                
-                call.respond(filteredTasks)
+                )) {
+                    is com.cadetex.service.Result.Success -> call.respond(result.value)
+                    is com.cadetex.service.Result.Error -> call.respond(HttpStatusCode.BadRequest, mapOf("error" to result.message))
+                }
             }
 
             get("/status/{status}") {
@@ -116,9 +131,13 @@ fun Route.taskRoutes() {
                     val userData = call.getUserData()
                     val organizationId = userData?.organizationId ?: return@get call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "No se pudo obtener la organización del usuario"))
                     
-                    val tasks = taskRepository.tasksByStatus(status)
-                    val filteredTasks = tasks.filter { it.organizationId == organizationId }
-                    call.respond(filteredTasks)
+                    when (val result = taskService.findByStatus(status)) {
+                        is com.cadetex.service.Result.Success -> {
+                            val filteredTasks = result.value.filter { it.organizationId == organizationId }
+                            call.respond(filteredTasks)
+                        }
+                        is com.cadetex.service.Result.Error -> call.respond(HttpStatusCode.BadRequest, mapOf("error" to result.message))
+                    }
                 } catch (e: IllegalArgumentException) {
                     call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Invalid status"))
                 }
@@ -129,39 +148,24 @@ fun Route.taskRoutes() {
                 if (userData?.role == "SUPERADMIN" || userData?.role == "ORGADMIN") {
                     try {
                         val request = call.receive<CreateTaskRequest>()
-                        // Verificar que el orgadmin solo puede crear tareas en su organización
                         if (userData.role == "ORGADMIN" && request.organizationId != userData.organizationId) {
                             call.respond(HttpStatusCode.Forbidden, mapOf("error" to "No puedes crear tareas en otras organizaciones"))
                             return@post
                         }
-                        val task = Task(
-                            organizationId = request.organizationId,
-                            type = request.type,
-                            referenceNumber = request.referenceNumber,
-                            clientId = request.clientId,
-                            providerId = request.providerId,
-                            addressOverride = request.addressOverride,
-                            city = request.city,
-                            province = request.province,
-                            contact = request.contact,
-                            courierId = request.courierId,
-                            status = request.status,
-                            priority = request.priority,
-                            scheduledDate = request.scheduledDate,
-                            notes = request.notes,
-                            photoRequired = request.photoRequired,
-                            mbl = request.mbl,
-                            hbl = request.hbl,
-                            freightCert = request.freightCert,
-                            foCert = request.foCert,
-                            bunkerCert = request.bunkerCert,
-                            linkedTaskId = request.linkedTaskId,
-                            receiptPhotoUrl = request.receiptPhotoUrl
-                        )
-                        val createdTask = taskRepository.create(task)
-                        call.respond(HttpStatusCode.Created, createdTask)
+                        when (val result = taskService.create(request)) {
+                            is com.cadetex.service.Result.Success -> call.respond(HttpStatusCode.Created, result.value)
+                            is com.cadetex.service.Result.Error -> {
+                                val statusCode = if (result.message.contains("número de referencia")) {
+                                    HttpStatusCode.Conflict
+                                } else {
+                                    HttpStatusCode.BadRequest
+                                }
+                                call.respond(statusCode, mapOf("error" to result.message))
+                            }
+                        }
                     } catch (e: Exception) {
-                        call.respond(HttpStatusCode.BadRequest, mapOf("error" to e.message))
+                        logger.error("Error creating task: ${e.message}", e)
+                        call.respond(HttpStatusCode.BadRequest, mapOf("error" to (e.message ?: "Error desconocido")))
                     }
                 } else {
                     call.respond(HttpStatusCode.Forbidden, mapOf("error" to "Solo administradores pueden crear tareas"))
@@ -174,175 +178,181 @@ fun Route.taskRoutes() {
                 
                 logger.info("PUT /tasks/$id - User: ${userData?.userId}, Role: ${userData?.role}")
                 
-                val existingTask = taskRepository.findById(id)
-                
-                if (existingTask == null) {
-                    logger.warn("Task not found: $id")
-                    call.respond(HttpStatusCode.NotFound)
-                    return@put
-                }
-                
-                // Verificar permisos
-                if (userData?.role == "SUPERADMIN" || 
-                    (userData?.role == "ORGADMIN" && existingTask.organizationId == userData.organizationId) ||
-                    (userData?.role == "COURIER" && existingTask.organizationId == userData.organizationId)) {
-                    try {
-                        val request = call.receive<UpdateTaskRequest>()
+                when (val findResult = taskService.findById(id)) {
+                    is com.cadetex.service.Result.Success -> {
+                        val existingTask = findResult.value
                         
-                        // Log específico para cambios de cliente/proveedor
-                        if (existingTask.clientId != request.clientId || existingTask.providerId != request.providerId) {
-                            logger.info("Contact change detected - Task: $id, Old: client=${existingTask.clientId}, provider=${existingTask.providerId}, New: client=${request.clientId}, provider=${request.providerId}")
-                        }
-                        
-                        val task = taskRepository.update(id, request)
-                        if (task != null) {
-                            logger.info("Task updated successfully: $id")
-                            call.respond(task)
+                        // Verificar permisos
+                        if (userData?.role == "SUPERADMIN" || 
+                            (userData?.role == "ORGADMIN" && existingTask.organizationId == userData.organizationId) ||
+                            (userData?.role == "COURIER" && existingTask.organizationId == userData.organizationId)) {
+                            try {
+                                val request = call.receive<UpdateTaskRequest>()
+                                
+                                // Log específico para cambios de cliente/proveedor
+                                if (existingTask.clientId != request.clientId || existingTask.providerId != request.providerId) {
+                                    logger.info("Contact change detected - Task: $id, Old: client=${existingTask.clientId}, provider=${existingTask.providerId}, New: client=${request.clientId}, provider=${request.providerId}")
+                                }
+                                
+                                when (val updateResult = taskService.update(id, request)) {
+                                    is com.cadetex.service.Result.Success -> {
+                                        logger.info("Task updated successfully: $id")
+                                        call.respond(updateResult.value)
+                                    }
+                                    is com.cadetex.service.Result.Error -> {
+                                        logger.error("Failed to update task: $id - ${updateResult.message}")
+                                        call.respond(HttpStatusCode.BadRequest, mapOf("error" to updateResult.message))
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                logger.error("Error updating task $id", e)
+                                call.respond(HttpStatusCode.BadRequest, mapOf("error" to (e.message ?: "Error desconocido")))
+                            }
                         } else {
-                            logger.error("Failed to update task: $id")
-                            call.respond(HttpStatusCode.NotFound)
+                            logger.warn("Permission denied for task $id - User: ${userData?.userId}, Role: ${userData?.role}")
+                            call.respond(HttpStatusCode.Forbidden, mapOf("error" to "No tienes permisos para actualizar esta tarea"))
                         }
-                    } catch (e: Exception) {
-                        logger.error("Error updating task $id", e)
-                        call.respond(HttpStatusCode.BadRequest, mapOf("error" to e.message))
                     }
-                } else {
-                    logger.warn("Permission denied for task $id - User: ${userData?.userId}, Role: ${userData?.role}")
-                    call.respond(HttpStatusCode.Forbidden, mapOf("error" to "No tienes permisos para actualizar esta tarea"))
+                    is com.cadetex.service.Result.Error -> {
+                        logger.warn("Task not found: $id")
+                        call.respond(HttpStatusCode.NotFound, mapOf("error" to findResult.message))
+                    }
                 }
             }
 
             patch("/{id}/status") {
                 val id = call.parameters["id"] ?: return@patch call.respond(HttpStatusCode.BadRequest)
                 val userData = call.getUserData()
-                val existingTask = taskRepository.findById(id)
                 
-                if (existingTask == null) {
-                    call.respond(HttpStatusCode.NotFound)
-                    return@patch
-                }
-                
-                // Verificar permisos - couriers pueden actualizar estado de tareas de su organización
-                if (userData?.role == "SUPERADMIN" || 
-                    (userData?.role == "ORGADMIN" && existingTask.organizationId == userData.organizationId) ||
-                    (userData?.role == "COURIER" && existingTask.organizationId == userData.organizationId)) {
-                    try {
-                        val request = call.receive<Map<String, String>>()
-                        val newStatus = request["status"] ?: return@patch call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Status is required"))
+                when (val findResult = taskService.findById(id)) {
+                    is com.cadetex.service.Result.Success -> {
+                        val existingTask = findResult.value
                         
-                        val updateRequest = UpdateTaskRequest(status = TaskStatus.valueOf(newStatus.uppercase()))
-                        val task = taskRepository.update(id, updateRequest)
-                        if (task != null) {
-                            call.respond(task)
+                        // Verificar permisos - couriers pueden actualizar estado de tareas de su organización
+                        if (userData?.role == "SUPERADMIN" || 
+                            (userData?.role == "ORGADMIN" && existingTask.organizationId == userData.organizationId) ||
+                            (userData?.role == "COURIER" && existingTask.organizationId == userData.organizationId)) {
+                            try {
+                                val request = call.receive<Map<String, String>>()
+                                val newStatus = request["status"] ?: return@patch call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Status is required"))
+                                
+                                val updateRequest = UpdateTaskRequest(status = TaskStatus.valueOf(newStatus.uppercase()))
+                                when (val updateResult = taskService.update(id, updateRequest)) {
+                                    is com.cadetex.service.Result.Success -> call.respond(updateResult.value)
+                                    is com.cadetex.service.Result.Error -> call.respond(HttpStatusCode.BadRequest, mapOf("error" to updateResult.message))
+                                }
+                            } catch (e: Exception) {
+                                call.respond(HttpStatusCode.BadRequest, mapOf("error" to (e.message ?: "Error desconocido")))
+                            }
                         } else {
-                            call.respond(HttpStatusCode.NotFound)
+                            call.respond(HttpStatusCode.Forbidden, mapOf("error" to "No tienes permisos para actualizar el estado de esta tarea"))
                         }
-                    } catch (e: Exception) {
-                        call.respond(HttpStatusCode.BadRequest, mapOf("error" to e.message))
                     }
-                } else {
-                    call.respond(HttpStatusCode.Forbidden, mapOf("error" to "No tienes permisos para actualizar el estado de esta tarea"))
+                    is com.cadetex.service.Result.Error -> call.respond(HttpStatusCode.NotFound, mapOf("error" to findResult.message))
                 }
             }
 
             post("/{id}/photo") {
                 val id = call.parameters["id"] ?: return@post call.respond(HttpStatusCode.BadRequest)
                 val userData = call.getUserData()
-                val existingTask = taskRepository.findById(id)
                 
-                if (existingTask == null) {
-                    call.respond(HttpStatusCode.NotFound)
-                    return@post
-                }
-                
-                // Verificar permisos - couriers pueden subir fotos a sus tareas
-                if (userData?.role == "SUPERADMIN" || 
-                    (userData?.role == "ORGADMIN" && existingTask.organizationId == userData.organizationId) ||
-                    (userData?.role == "COURIER" && existingTask.organizationId == userData.organizationId)) {
-                    try {
-                        val multipartData = call.receiveMultipart()
-                        var photoUrl: String? = null
-                        var isReceipt = false
+                when (val findResult = taskService.findById(id)) {
+                    is com.cadetex.service.Result.Success -> {
+                        val existingTask = findResult.value
                         
-                        multipartData.forEachPart { part ->
-                            when (part) {
-                                is PartData.FileItem -> {
-                                    if (part.name == "photo") {
-                                        val bytes = part.streamProvider().readBytes()
-                                        val base64 = java.util.Base64.getEncoder().encodeToString(bytes)
-                                        photoUrl = "data:image/jpeg;base64,$base64"
-                                    }
-                                }
-                                is PartData.FormItem -> {
-                                    if (part.name == "isReceipt") {
-                                        isReceipt = part.value.toBoolean()
-                                    }
-                                }
-                                is PartData.BinaryChannelItem -> {}
-                                is PartData.BinaryItem -> {}
-                            }
-                            part.dispose()
-                        }
-                        
-                        if (photoUrl != null) {
-                            // Si es la foto obligatoria (receipt), actualizar en la tarea
-                            if (isReceipt) {
-                                val updateRequest = UpdateTaskRequest(receiptPhotoUrl = photoUrl)
-                                val updatedTask = taskRepository.update(id, updateRequest)
+                        // Verificar permisos - couriers pueden subir fotos a sus tareas
+                        if (userData?.role == "SUPERADMIN" || 
+                            (userData?.role == "ORGADMIN" && existingTask.organizationId == userData.organizationId) ||
+                            (userData?.role == "COURIER" && existingTask.organizationId == userData.organizationId)) {
+                            try {
+                                val multipartData = call.receiveMultipart()
+                                var photoUrl: String? = null
+                                var isReceipt = false
                                 
-                                if (updatedTask != null) {
-                                    call.respond(mapOf("photoUrl" to photoUrl))
-                                } else {
-                                    call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "Error al guardar la foto"))
+                                multipartData.forEachPart { part ->
+                                    when (part) {
+                                        is PartData.FileItem -> {
+                                            if (part.name == "photo") {
+                                                val bytes = part.streamProvider().readBytes()
+                                                val base64 = java.util.Base64.getEncoder().encodeToString(bytes)
+                                                photoUrl = "data:image/jpeg;base64,$base64"
+                                            }
+                                        }
+                                        is PartData.FormItem -> {
+                                            if (part.name == "isReceipt") {
+                                                isReceipt = part.value.toBoolean()
+                                            }
+                                        }
+                                        is PartData.BinaryChannelItem -> {}
+                                        is PartData.BinaryItem -> {}
+                                    }
+                                    part.dispose()
                                 }
-                            } else {
-                                // Foto adicional: crear en task_photos
-                                val taskPhotoRepo = com.cadetex.repository.TaskPhotoRepository()
-                                val createRequest = com.cadetex.model.CreateTaskPhotoRequest(
-                                    taskId = id,
-                                    photoUrl = photoUrl,
-                                    photoType = "ADDITIONAL"
-                                )
-                                val createdPhoto = taskPhotoRepo.create(createRequest)
-                                call.respond(mapOf("photoUrl" to photoUrl, "photoId" to createdPhoto.id))
+                                
+                                if (photoUrl != null) {
+                                    // Si es la foto obligatoria (receipt), actualizar en la tarea
+                                    if (isReceipt) {
+                                        val updateRequest = UpdateTaskRequest(receiptPhotoUrl = photoUrl)
+                                        when (val updateResult = taskService.update(id, updateRequest)) {
+                                            is com.cadetex.service.Result.Success -> {
+                                                call.respond(mapOf("photoUrl" to photoUrl))
+                                            }
+                                            is com.cadetex.service.Result.Error -> {
+                                                call.respond(HttpStatusCode.InternalServerError, mapOf("error" to updateResult.message))
+                                            }
+                                        }
+                                    } else {
+                                        // Foto adicional: crear en task_photos
+                                        val taskPhotoService = com.cadetex.service.TaskPhotoService()
+                                        val createRequest = com.cadetex.model.CreateTaskPhotoRequest(
+                                            taskId = id,
+                                            photoUrl = photoUrl,
+                                            photoType = "ADDITIONAL"
+                                        )
+                                        when (val photoResult = taskPhotoService.create(createRequest)) {
+                                            is com.cadetex.service.Result.Success -> {
+                                                call.respond(mapOf("photoUrl" to photoUrl, "photoId" to photoResult.value.id))
+                                            }
+                                            is com.cadetex.service.Result.Error -> {
+                                                call.respond(HttpStatusCode.BadRequest, mapOf("error" to photoResult.message))
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    call.respond(HttpStatusCode.BadRequest, mapOf("error" to "No se encontró archivo de foto"))
+                                }
+                            } catch (e: Exception) {
+                                logger.error("Error uploading photo for task $id", e)
+                                call.respond(HttpStatusCode.BadRequest, mapOf("error" to (e.message ?: "Error desconocido")))
                             }
                         } else {
-                            call.respond(HttpStatusCode.BadRequest, mapOf("error" to "No se encontró archivo de foto"))
+                            call.respond(HttpStatusCode.Forbidden, mapOf("error" to "No tienes permisos para subir fotos a esta tarea"))
                         }
-                    } catch (e: Exception) {
-                        logger.error("Error uploading photo for task $id", e)
-                        call.respond(HttpStatusCode.BadRequest, mapOf("error" to (e.message ?: "Error desconocido")))
                     }
-                } else {
-                    call.respond(HttpStatusCode.Forbidden, mapOf("error" to "No tienes permisos para subir fotos a esta tarea"))
+                    is com.cadetex.service.Result.Error -> call.respond(HttpStatusCode.NotFound, mapOf("error" to findResult.message))
                 }
             }
 
             delete("/{id}") {
                 val id = call.parameters["id"] ?: return@delete call.respond(HttpStatusCode.BadRequest)
                 val userData = call.getUserData()
-                val existingTask = taskRepository.findById(id)
                 
-                if (existingTask == null) {
-                    call.respond(HttpStatusCode.NotFound)
-                    return@delete
-                }
-                
-                // Solo superadmin y orgadmin pueden eliminar tareas
-                if (userData?.role == "SUPERADMIN" || 
-                    (userData?.role == "ORGADMIN" && existingTask.organizationId == userData.organizationId)) {
-                    try {
-                        val deleted = taskRepository.delete(id)
-                        if (deleted) {
-                            call.respond(HttpStatusCode.NoContent)
+                when (val findResult = taskService.findById(id)) {
+                    is com.cadetex.service.Result.Success -> {
+                        val existingTask = findResult.value
+                        
+                        // Solo superadmin y orgadmin pueden eliminar tareas
+                        if (userData?.role == "SUPERADMIN" || 
+                            (userData?.role == "ORGADMIN" && existingTask.organizationId == userData.organizationId)) {
+                            when (val deleteResult = taskService.delete(id)) {
+                                is com.cadetex.service.Result.Success -> call.respond(HttpStatusCode.NoContent)
+                                is com.cadetex.service.Result.Error -> call.respond(HttpStatusCode.BadRequest, mapOf("error" to deleteResult.message))
+                            }
                         } else {
-                            call.respond(HttpStatusCode.NotFound)
+                            call.respond(HttpStatusCode.Forbidden, mapOf("error" to "No tienes permisos para eliminar esta tarea"))
                         }
-                    } catch (e: Exception) {
-                        call.respond(HttpStatusCode.BadRequest, mapOf("error" to e.message))
                     }
-                } else {
-                    call.respond(HttpStatusCode.Forbidden, mapOf("error" to "No tienes permisos para eliminar esta tarea"))
+                    is com.cadetex.service.Result.Error -> call.respond(HttpStatusCode.NotFound, mapOf("error" to findResult.message))
                 }
             }
         }

@@ -7,9 +7,7 @@ import org.jetbrains.exposed.sql.kotlin.datetime.timestamp
 object Providers : UUIDTable("providers") {
     val organizationId = reference("organization_id", Organizations.id, onDelete = ReferenceOption.CASCADE)
     val name = varchar("name", 120)
-    val address = varchar("address", 255)
-    val city = varchar("city", 80).nullable()
-    val province = varchar("province", 80).nullable()
+    val addressId = reference("address_id", Addresses.id, onDelete = ReferenceOption.SET_NULL).nullable()
     val contactName = varchar("contact_name", 100).nullable()
     val contactPhone = varchar("contact_phone", 50).nullable()
     val createdAt = timestamp("created_at")

@@ -23,7 +23,7 @@ class ClientsIntegrationTest : IntegrationTestBase() {
         val token = Json.parseToJsonElement(regRes.bodyAsText()).jsonObject["token"]!!.jsonPrimitive.content
 
         val payload = """
-            {"organizationId":"$orgId","name":"Acme","address":"Street 1","city":"BA","province":"BA","phoneNumber":"123","email":"acme@x.com","isActive":true}
+            {"organizationId":"$orgId","name":"Acme","address":{"street":"Street 1","city":"BA","province":"BA"},"phoneNumber":"123","email":"acme@x.com","isActive":true}
         """.trimIndent()
         val createRes = client.post("/clients") {
             header(HttpHeaders.Authorization, "Bearer $token")
@@ -52,7 +52,7 @@ class ClientsIntegrationTest : IntegrationTestBase() {
         val token = Json.parseToJsonElement(reg.bodyAsText()).jsonObject["token"]!!.jsonPrimitive.content
 
         // Create initial client
-        val createPayload = """{"organizationId":"$orgId","name":"A","address":"Addr","city":"City","province":"Prov","phoneNumber":"111","email":"a@x.com","isActive":true}"""
+        val createPayload = """{"organizationId":"$orgId","name":"A","address":{"street":"Addr","city":"City","province":"Prov"},"phoneNumber":"111","email":"a@x.com","isActive":true}"""
         val created = client.post("/clients") {
             header(HttpHeaders.Authorization, "Bearer $token")
             contentType(ContentType.Application.Json)
@@ -66,9 +66,7 @@ class ClientsIntegrationTest : IntegrationTestBase() {
         val updatePayload = """
             {
               "name":"B",
-              "address":"Addr2",
-              "city":"City2",
-              "province":"Prov2",
+              "address":{"street":"Addr2","city":"City2","province":"Prov2"},
               "phoneNumber":"222",
               "email":"b@x.com",
               "isActive": false
@@ -83,7 +81,12 @@ class ClientsIntegrationTest : IntegrationTestBase() {
 
         dbConnection().use { c ->
             c.createStatement().use { st ->
-                st.executeQuery("SELECT name,address,city,province,phone_number,email,is_active FROM clients WHERE id = '$clientId'::uuid").use { rs ->
+                st.executeQuery("""
+                    SELECT c.name, a.street, a.city, a.province, c.phone_number, c.email, c.is_active 
+                    FROM clients c
+                    LEFT JOIN addresses a ON c.address_id = a.id
+                    WHERE c.id = '$clientId'::uuid
+                """.trimIndent()).use { rs ->
                     rs.next()
                     assertEquals("B", rs.getString(1))
                     assertEquals("Addr2", rs.getString(2))
@@ -107,8 +110,8 @@ class ClientsIntegrationTest : IntegrationTestBase() {
         dbConnection().use { c ->
             c.createStatement().use { st ->
                 st.executeUpdate(
-                    "INSERT INTO clients(id, organization_id, name, address, city, province, phone_number, email, is_active, created_at, updated_at) " +
-                    "VALUES ('$clientId'::uuid, '$orgB'::uuid, 'N', 'A', 'C', 'P', '111', 'n@x.com', true, now(), now())"
+                    "INSERT INTO clients(id, organization_id, name, phone_number, email, is_active, created_at, updated_at) " +
+                    "VALUES ('$clientId'::uuid, '$orgB'::uuid, 'N', '111', 'n@x.com', true, now(), now())"
                 )
             }
         }
@@ -148,7 +151,7 @@ class ClientsIntegrationTest : IntegrationTestBase() {
         val token = Json.parseToJsonElement(regRes.bodyAsText()).jsonObject["token"]!!.jsonPrimitive.content
 
         val payload = """
-            {"organizationId":"$orgB","name":"Other","address":"Street 1","city":"BA","province":"BA"}
+            {"organizationId":"$orgB","name":"Other","address":{"street":"Street 1","city":"BA","province":"BA"}}
         """.trimIndent()
         val res = client.post("/clients") {
             header(HttpHeaders.Authorization, "Bearer $token")

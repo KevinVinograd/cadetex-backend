@@ -2,77 +2,113 @@ package com.cadetex.repository
 
 import com.cadetex.database.tables.TaskHistory
 import com.cadetex.model.TaskHistory as TaskHistoryModel
-import com.cadetex.model.CreateTaskHistoryRequest
-import com.cadetex.model.UpdateTaskHistoryRequest
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
-import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
-import kotlinx.datetime.Clock
 import java.util.*
 
+/**
+ * Repository simplificado: solo queries simples
+ * NO maneja transacciones - debe ser llamado desde dentro de una transacción (en los Services)
+ * Toda la lógica de negocio está en TaskHistoryService
+ */
 class TaskHistoryRepository {
 
-    suspend fun allTaskHistory(): List<TaskHistoryModel> = newSuspendedTransaction {
-        TaskHistory.selectAll().map(::rowToTaskHistory)
+    /**
+     * Buscar todas las task history
+     * Debe ejecutarse dentro de una transacción activa
+     */
+    fun findAll(): List<TaskHistoryModel> {
+        return TaskHistory.selectAll().map(::rowToTaskHistory)
     }
 
-    suspend fun findById(id: String): TaskHistoryModel? = newSuspendedTransaction {
-        TaskHistory
+    /**
+     * Buscar task history por ID
+     * Usa índice: id es PRIMARY KEY (automático)
+     * Debe ejecutarse dentro de una transacción activa
+     */
+    fun findById(id: UUID): TaskHistoryModel? {
+        return TaskHistory
             .selectAll()
-            .where { TaskHistory.id eq UUID.fromString(id) }
+            .where { TaskHistory.id eq id }
             .map(::rowToTaskHistory)
             .singleOrNull()
     }
 
-    suspend fun findByTaskId(taskId: String): List<TaskHistoryModel> = newSuspendedTransaction {
-        TaskHistory
+    /**
+     * Buscar task history por taskId
+     * Usa índice: task_id tiene índice (si existe)
+     * Debe ejecutarse dentro de una transacción activa
+     */
+    fun findByTaskId(taskId: UUID): List<TaskHistoryModel> {
+        return TaskHistory
             .selectAll()
-            .where { TaskHistory.taskId eq UUID.fromString(taskId) }
+            .where { TaskHistory.taskId eq taskId }
             .map(::rowToTaskHistory)
     }
 
-    suspend fun create(request: CreateTaskHistoryRequest): TaskHistoryModel = newSuspendedTransaction {
-        val now = Clock.System.now()
+    /**
+     * Insertar nueva task history
+     * Retorna el ID insertado
+     * Debe ejecutarse dentro de una transacción activa
+     */
+    fun insert(
+        taskId: UUID,
+        previousStatus: String? = null,
+        newStatus: String? = null,
+        changedBy: UUID? = null,
+        changedAt: kotlinx.datetime.Instant? = null,
+        updatedAt: kotlinx.datetime.Instant? = null
+    ): UUID {
         val id = UUID.randomUUID()
+        val now = changedAt ?: kotlinx.datetime.Clock.System.now()
 
         TaskHistory.insert {
             it[TaskHistory.id] = id
-            it[TaskHistory.taskId] = UUID.fromString(request.taskId)
-            it[TaskHistory.previousStatus] = request.previousStatus
-            it[TaskHistory.newStatus] = request.newStatus
-            it[TaskHistory.changedBy] = request.changedBy?.let { UUID.fromString(it) }
+            it[TaskHistory.taskId] = taskId
+            it[TaskHistory.previousStatus] = previousStatus
+            it[TaskHistory.newStatus] = newStatus
+            it[TaskHistory.changedBy] = changedBy
             it[TaskHistory.changedAt] = now
-            it[TaskHistory.updatedAt] = now
+            it[TaskHistory.updatedAt] = updatedAt ?: now
         }
 
-        TaskHistoryModel(
-            id = id.toString(),
-            taskId = request.taskId,
-            previousStatus = request.previousStatus,
-            newStatus = request.newStatus,
-            changedBy = request.changedBy,
-            changedAt = now.toString(),
-            updatedAt = now.toString()
-        )
+        return id
     }
 
-    suspend fun update(id: String, updateRequest: UpdateTaskHistoryRequest): TaskHistoryModel? = newSuspendedTransaction {
-        val now = Clock.System.now()
-
-        val updated = TaskHistory.update({ TaskHistory.id eq UUID.fromString(id) }) { row ->
-            updateRequest.previousStatus?.let { newPreviousStatus -> row[TaskHistory.previousStatus] = newPreviousStatus }
-            updateRequest.newStatus?.let { newNewStatus -> row[TaskHistory.newStatus] = newNewStatus }
-            updateRequest.changedBy?.let { newChangedBy -> row[TaskHistory.changedBy] = UUID.fromString(newChangedBy) }
-            row[TaskHistory.updatedAt] = now
+    /**
+     * Actualizar task history existente
+     * Usa índice: id es PRIMARY KEY (automático)
+     * Debe ejecutarse dentro de una transacción activa
+     */
+    fun update(
+        id: UUID,
+        previousStatus: String? = null,
+        newStatus: String? = null,
+        changedBy: UUID? = null,
+        updatedAt: kotlinx.datetime.Instant
+    ): Boolean {
+        val updated = TaskHistory.update({ TaskHistory.id eq id }) { row ->
+            previousStatus?.let { row[TaskHistory.previousStatus] = it }
+            newStatus?.let { row[TaskHistory.newStatus] = it }
+            changedBy?.let { row[TaskHistory.changedBy] = it }
+            row[TaskHistory.updatedAt] = updatedAt
         }
 
-        if (updated > 0) findById(id) else null
+        return updated > 0
     }
 
-    suspend fun delete(id: String): Boolean = newSuspendedTransaction {
-        TaskHistory.deleteWhere { TaskHistory.id eq UUID.fromString(id) } > 0
+    /**
+     * Eliminar task history
+     * Usa índice: id es PRIMARY KEY (automático)
+     * Debe ejecutarse dentro de una transacción activa
+     */
+    fun delete(id: UUID): Boolean {
+        return TaskHistory.deleteWhere { TaskHistory.id eq id } > 0
     }
 
+    /**
+     * Mapper de ResultRow a TaskHistory
+     */
     private fun rowToTaskHistory(row: ResultRow) = TaskHistoryModel(
         id = row[TaskHistory.id].value.toString(),
         taskId = row[TaskHistory.taskId].value.toString(),

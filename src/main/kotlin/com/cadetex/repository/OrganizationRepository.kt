@@ -2,71 +2,101 @@ package com.cadetex.repository
 
 import com.cadetex.database.tables.Organizations
 import com.cadetex.model.Organization
-import com.cadetex.model.CreateOrganizationRequest
-import com.cadetex.model.UpdateOrganizationRequest
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
-import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
-import kotlinx.datetime.Clock
-import kotlinx.datetime.Instant
 import java.util.*
 
+/**
+ * Repository simplificado: solo queries simples
+ * NO maneja transacciones - debe ser llamado desde dentro de una transacción (en los Services)
+ * Toda la lógica de negocio está en OrganizationService
+ */
 class OrganizationRepository {
 
-    suspend fun allOrganizations(): List<Organization> = newSuspendedTransaction {
-        Organizations.selectAll().map(::rowToOrganization)
+    /**
+     * Buscar todas las organizaciones
+     * Debe ejecutarse dentro de una transacción activa
+     */
+    fun findAll(): List<Organization> {
+        return Organizations.selectAll().map(::rowToOrganization)
     }
 
-    suspend fun findById(id: String): Organization? = newSuspendedTransaction {
-        Organizations
+    /**
+     * Buscar organización por ID
+     * Usa índice: id es PRIMARY KEY (automático)
+     * Debe ejecutarse dentro de una transacción activa
+     */
+    fun findById(id: UUID): Organization? {
+        return Organizations
             .selectAll()
-            .where { Organizations.id eq UUID.fromString(id) }
+            .where { Organizations.id eq id }
             .map(::rowToOrganization)
             .singleOrNull()
     }
 
-    suspend fun findByName(name: String): Organization? = newSuspendedTransaction {
-        Organizations
+    /**
+     * Buscar organización por nombre
+     * Debe ejecutarse dentro de una transacción activa
+     */
+    fun findByName(name: String): Organization? {
+        return Organizations
             .selectAll()
             .where { Organizations.name eq name }
             .map(::rowToOrganization)
             .singleOrNull()
     }
 
-    suspend fun create(request: CreateOrganizationRequest): Organization = newSuspendedTransaction {
-        val now = Clock.System.now()
-
+    /**
+     * Insertar nueva organización
+     * Retorna el ID insertado
+     * Debe ejecutarse dentro de una transacción activa
+     */
+    fun insert(
+        name: String,
+        createdAt: kotlinx.datetime.Instant,
+        updatedAt: kotlinx.datetime.Instant
+    ): UUID {
         val inserted = Organizations.insertAndGetId {
-            it[name] = request.name
-            it[createdAt] = now
-            it[updatedAt] = now
+            it[Organizations.name] = name
+            it[Organizations.createdAt] = createdAt
+            it[Organizations.updatedAt] = updatedAt
         }
 
-        Organization(
-            id = inserted.value.toString(), // UUID generado automáticamente
-            name = request.name,
-            createdAt = now.toString(),
-            updatedAt = now.toString()
-        )
+        return inserted.value
     }
 
-    suspend fun update(id: String, updateRequest: UpdateOrganizationRequest): Organization? = newSuspendedTransaction {
-        val now = Clock.System.now()
-
-        val updated = Organizations.update({ Organizations.id eq UUID.fromString(id) }) { row ->
-            updateRequest.name?.let { newName -> row[Organizations.name] = newName }
-            row[Organizations.updatedAt] = now
+    /**
+     * Actualizar organización existente
+     * Usa índice: id es PRIMARY KEY (automático)
+     * Debe ejecutarse dentro de una transacción activa
+     */
+    fun update(
+        id: UUID,
+        name: String? = null,
+        updatedAt: kotlinx.datetime.Instant
+    ): Boolean {
+        val updated = Organizations.update({ Organizations.id eq id }) { row ->
+            name?.let { row[Organizations.name] = it }
+            row[Organizations.updatedAt] = updatedAt
         }
 
-        if (updated > 0) findById(id) else null
+        return updated > 0
     }
 
-    suspend fun delete(id: String): Boolean = newSuspendedTransaction {
-        Organizations.deleteWhere { Organizations.id eq UUID.fromString(id) } > 0
+    /**
+     * Eliminar organización
+     * Usa índice: id es PRIMARY KEY (automático)
+     * Debe ejecutarse dentro de una transacción activa
+     */
+    fun delete(id: UUID): Boolean {
+        return Organizations.deleteWhere { Organizations.id eq id } > 0
     }
 
+    /**
+     * Mapper de ResultRow a Organization
+     */
     private fun rowToOrganization(row: ResultRow) = Organization(
-        id = row[Organizations.id].value.toString(), // ✅ usar .value con UUIDTable
+        id = row[Organizations.id].value.toString(),
         name = row[Organizations.name],
         createdAt = row[Organizations.createdAt].toString(),
         updatedAt = row[Organizations.updatedAt].toString()

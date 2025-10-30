@@ -11,24 +11,24 @@ data class Client(
     val id: String = UUID.randomUUID().toString(),
     val organizationId: String,
     val name: String,
-    val address: String,
-    val city: String,
-    val province: String,
+    val address: Address? = null,
     val phoneNumber: String? = null,
     val email: String? = null,
     @EncodeDefault val isActive: Boolean = true,
     val createdAt: String? = null,
     val updatedAt: String? = null
-)
+) {
+    // Helper para obtener address completo como string
+    val addressString: String
+        get() = address?.toFullAddressString() ?: ""
+}
 
 @Serializable
 @OptIn(ExperimentalSerializationApi::class)
 data class CreateClientRequest(
     val organizationId: String,
     val name: String,
-    val address: String,
-    val city: String,
-    val province: String,
+    val address: Address? = null,
     val phoneNumber: String? = null,
     val email: String? = null,
     @EncodeDefault val isActive: Boolean = true
@@ -37,9 +37,7 @@ data class CreateClientRequest(
 @Serializable
 data class UpdateClientRequest(
     val name: String? = null,
-    val address: String? = null,
-    val city: String? = null,
-    val province: String? = null,
+    val address: Address? = null,
     val phoneNumber: String? = null,
     val email: String? = null,
     val isActive: Boolean? = null

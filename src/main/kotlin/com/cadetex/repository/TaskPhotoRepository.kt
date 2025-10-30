@@ -2,55 +2,104 @@ package com.cadetex.repository
 
 import com.cadetex.database.tables.TaskPhotos
 import com.cadetex.model.TaskPhoto
-import com.cadetex.model.CreateTaskPhotoRequest
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
-import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
 import java.util.*
 
+/**
+ * Repository simplificado: solo queries simples
+ * NO maneja transacciones - debe ser llamado desde dentro de una transacción (en los Services)
+ * Toda la lógica de negocio está en TaskPhotoService
+ */
 class TaskPhotoRepository {
 
-    suspend fun allTaskPhotos(): List<TaskPhoto> = newSuspendedTransaction {
-        TaskPhotos.selectAll().map(::rowToTaskPhoto)
+    /**
+     * Buscar todas las task photos
+     * Debe ejecutarse dentro de una transacción activa
+     */
+    fun findAll(): List<TaskPhoto> {
+        return TaskPhotos.selectAll().map(::rowToTaskPhoto)
     }
 
-    suspend fun findById(id: String): TaskPhoto? = newSuspendedTransaction {
-        TaskPhotos
+    /**
+     * Buscar task photo por ID
+     * Usa índice: id es PRIMARY KEY (automático)
+     * Debe ejecutarse dentro de una transacción activa
+     */
+    fun findById(id: UUID): TaskPhoto? {
+        return TaskPhotos
             .selectAll()
-            .where { TaskPhotos.id eq UUID.fromString(id) }
+            .where { TaskPhotos.id eq id }
             .map(::rowToTaskPhoto)
             .singleOrNull()
     }
 
-    suspend fun findByTaskId(taskId: String): List<TaskPhoto> = newSuspendedTransaction {
-        TaskPhotos
+    /**
+     * Buscar task photos por taskId
+     * Usa índice: idx_task_photos_task_id
+     * Debe ejecutarse dentro de una transacción activa
+     */
+    fun findByTaskId(taskId: UUID): List<TaskPhoto> {
+        return TaskPhotos
             .selectAll()
-            .where { TaskPhotos.taskId eq UUID.fromString(taskId) }
+            .where { TaskPhotos.taskId eq taskId }
             .map(::rowToTaskPhoto)
     }
 
-    suspend fun create(request: CreateTaskPhotoRequest): TaskPhoto = newSuspendedTransaction {
+    /**
+     * Insertar nueva task photo
+     * Retorna el ID insertado
+     * Debe ejecutarse dentro de una transacción activa
+     */
+    fun insert(
+        taskId: UUID,
+        photoUrl: String,
+        photoType: String = "ADDITIONAL",
+        createdAt: kotlinx.datetime.Instant? = null
+    ): UUID {
         val id = UUID.randomUUID()
+        val now = createdAt ?: kotlinx.datetime.Clock.System.now()
 
         TaskPhotos.insert {
             it[TaskPhotos.id] = id
-            it[TaskPhotos.taskId] = UUID.fromString(request.taskId)
-            it[TaskPhotos.photoUrl] = request.photoUrl
-            it[TaskPhotos.photoType] = request.photoType
+            it[TaskPhotos.taskId] = taskId
+            it[TaskPhotos.photoUrl] = photoUrl
+            it[TaskPhotos.photoType] = photoType
+            it[TaskPhotos.createdAt] = now
         }
 
-        TaskPhoto(
-            id = id.toString(),
-            taskId = request.taskId,
-            photoUrl = request.photoUrl,
-            photoType = request.photoType
-        )
+        return id
     }
 
-    suspend fun delete(id: String): Boolean = newSuspendedTransaction {
-        TaskPhotos.deleteWhere { TaskPhotos.id eq UUID.fromString(id) } > 0
+    /**
+     * Actualizar task photo existente
+     * Usa índice: id es PRIMARY KEY (automático)
+     * Debe ejecutarse dentro de una transacción activa
+     */
+    fun update(
+        id: UUID,
+        photoUrl: String? = null,
+        photoType: String? = null
+    ): Boolean {
+        val updated = TaskPhotos.update({ TaskPhotos.id eq id }) { row ->
+            photoUrl?.let { row[TaskPhotos.photoUrl] = it }
+            photoType?.let { row[TaskPhotos.photoType] = it }
+        }
+        return updated > 0
     }
 
+    /**
+     * Eliminar task photo
+     * Usa índice: id es PRIMARY KEY (automático)
+     * Debe ejecutarse dentro de una transacción activa
+     */
+    fun delete(id: UUID): Boolean {
+        return TaskPhotos.deleteWhere { TaskPhotos.id eq id } > 0
+    }
+
+    /**
+     * Mapper de ResultRow a TaskPhoto
+     */
     private fun rowToTaskPhoto(row: ResultRow) = TaskPhoto(
         id = row[TaskPhotos.id].value.toString(),
         taskId = row[TaskPhotos.taskId].value.toString(),

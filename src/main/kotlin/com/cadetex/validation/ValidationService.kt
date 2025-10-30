@@ -75,21 +75,6 @@ object ValidationService {
         return errors
     }
 
-    fun validateCreateClientRequest(request: CreateClientRequest): List<String> {
-        val errors = mutableListOf<String>()
-        
-        if (request.organizationId.isBlank()) {
-            errors.add("organizationId is required")
-        }
-        if (request.name.isBlank()) {
-            errors.add("name is required")
-        }
-        if (request.address.isBlank()) {
-            errors.add("address is required")
-        }
-        
-        return errors
-    }
 
     fun validateUpdateClientRequest(request: UpdateClientRequest): List<String> {
         val errors = mutableListOf<String>()
@@ -97,28 +82,11 @@ object ValidationService {
         if (request.name != null && request.name.isBlank()) {
             errors.add("name cannot be blank")
         }
-        if (request.address != null && request.address.isBlank()) {
-            errors.add("address cannot be blank")
-        }
+        // address is now an Address object, validation is handled separately if needed
         
         return errors
     }
 
-    fun validateCreateProviderRequest(request: CreateProviderRequest): List<String> {
-        val errors = mutableListOf<String>()
-        
-        if (request.organizationId.isBlank()) {
-            errors.add("organizationId is required")
-        }
-        if (request.name.isBlank()) {
-            errors.add("name is required")
-        }
-        if (request.address.isBlank()) {
-            errors.add("address is required")
-        }
-        
-        return errors
-    }
 
     fun validateUpdateProviderRequest(request: UpdateProviderRequest): List<String> {
         val errors = mutableListOf<String>()
@@ -126,9 +94,7 @@ object ValidationService {
         if (request.name != null && request.name.isBlank()) {
             errors.add("name cannot be blank")
         }
-        if (request.address != null && request.address.isBlank()) {
-            errors.add("address cannot be blank")
-        }
+        // address is now an Address object, validation is handled separately if needed
         
         return errors
     }
@@ -157,25 +123,6 @@ object ValidationService {
         }
         if (request.phoneNumber != null && request.phoneNumber.isBlank()) {
             errors.add("phoneNumber cannot be blank")
-        }
-        
-        return errors
-    }
-
-    fun validateCreateTaskRequest(request: CreateTaskRequest): List<String> {
-        val errors = mutableListOf<String>()
-        
-        if (request.organizationId.isBlank()) {
-            errors.add("organizationId is required")
-        }
-        if (request.type == null) {
-            errors.add("type is required")
-        }
-        if (request.status == null) {
-            errors.add("status is required")
-        }
-        if (request.priority == null) {
-            errors.add("priority is required")
         }
         
         return errors

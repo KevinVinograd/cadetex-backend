@@ -21,7 +21,7 @@ class ProvidersIntegrationTest : IntegrationTestBase() {
         val token = Json.parseToJsonElement(regRes.bodyAsText()).jsonObject["token"]!!.jsonPrimitive.content
 
         val payload = """
-            {"organizationId":"$orgId","name":"Prov1","address":"Addr","city":"City","province":"Prov","contactName":"John","contactPhone":"123","isActive":true}
+            {"organizationId":"$orgId","name":"Prov1","address":{"street":"Addr","city":"City","province":"Prov"},"contactName":"John","contactPhone":"123","isActive":true}
         """.trimIndent()
         val res = client.post("/providers") {
             header(HttpHeaders.Authorization, "Bearer $token")
@@ -51,7 +51,7 @@ class ProvidersIntegrationTest : IntegrationTestBase() {
         val token = Json.parseToJsonElement(regRes.bodyAsText()).jsonObject["token"]!!.jsonPrimitive.content
 
         val payload = """
-            {"organizationId":"$orgB","name":"ProvX","address":"Addr"}
+            {"organizationId":"$orgB","name":"ProvX","address":{"street":"Addr","city":"City","province":"Prov"}}
         """.trimIndent()
         val res = client.post("/providers") {
             header(HttpHeaders.Authorization, "Bearer $token")
@@ -82,7 +82,7 @@ class ProvidersIntegrationTest : IntegrationTestBase() {
         val created = client.post("/providers") {
             header(HttpHeaders.Authorization, "Bearer $token")
             contentType(ContentType.Application.Json)
-            setBody("""{"organizationId":"$orgId","name":"A","address":"Adr","city":"C","province":"P","contactName":"CN","contactPhone":"111"}""")
+            setBody("""{"organizationId":"$orgId","name":"A","address":{"street":"Adr","city":"C","province":"P"},"contactName":"CN","contactPhone":"111"}""")
         }
         val createdJson = Json.parseToJsonElement(created.bodyAsText()).jsonObject
         val providerId = createdJson["id"]!!.jsonPrimitive.content
@@ -92,14 +92,19 @@ class ProvidersIntegrationTest : IntegrationTestBase() {
             header(HttpHeaders.Authorization, "Bearer $token")
             contentType(ContentType.Application.Json)
             setBody("""
-                {"name":"B","address":"Adr2","city":"C2","province":"P2","contactName":"CN2","contactPhone":"222","isActive":false}
+                {"name":"B","address":{"street":"Adr2","city":"C2","province":"P2"},"contactName":"CN2","contactPhone":"222","isActive":false}
             """.trimIndent())
         }
         assertEquals(HttpStatusCode.OK, updated.status)
 
         dbConnection().use { c ->
             c.createStatement().use { st ->
-                st.executeQuery("SELECT name,address,city,province,contact_name,contact_phone FROM providers WHERE id = '$providerId'::uuid").use { rs ->
+                st.executeQuery("""
+                    SELECT p.name, a.street, a.city, a.province, p.contact_name, p.contact_phone 
+                    FROM providers p
+                    LEFT JOIN addresses a ON p.address_id = a.id
+                    WHERE p.id = '$providerId'::uuid
+                """.trimIndent()).use { rs ->
                     rs.next()
                     assertEquals("B", rs.getString(1))
                     assertEquals("Adr2", rs.getString(2))
@@ -125,7 +130,7 @@ class ProvidersIntegrationTest : IntegrationTestBase() {
         val created = client.post("/providers") {
             header(HttpHeaders.Authorization, "Bearer $token")
             contentType(ContentType.Application.Json)
-            setBody("""{"organizationId":"$orgId","name":"DelMe","address":"Adr"}""")
+            setBody("""{"organizationId":"$orgId","name":"DelMe","address":{"street":"Adr","city":"C","province":"P"}}""")
         }
         val providerId = Json.parseToJsonElement(created.bodyAsText()).jsonObject["id"]!!.jsonPrimitive.content
 

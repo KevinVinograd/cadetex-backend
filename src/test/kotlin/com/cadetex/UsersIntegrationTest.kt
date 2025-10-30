@@ -35,7 +35,7 @@ class UsersIntegrationTest : IntegrationTestBase() {
         val res = client.post("/users") {
             header(HttpHeaders.Authorization, "Bearer $adminToken")
             contentType(ContentType.Application.Json)
-            setBody("""{"organizationId":"$orgId","name":"Emp","email":"emp@x.com","password":"p","role":"COURIER","isActive":true}""")
+            setBody("""{"organizationId":"$orgId","name":"Emp","email":"emp@x.com","password":"password123","role":"COURIER","isActive":true}""")
         }
         assertEquals(HttpStatusCode.Created, res.status)
 
@@ -57,7 +57,7 @@ class UsersIntegrationTest : IntegrationTestBase() {
         val res = client.post("/users") {
             header(HttpHeaders.Authorization, "Bearer $adminToken")
             contentType(ContentType.Application.Json)
-            setBody("""{"organizationId":"$orgB","name":"Emp","email":"emp2@x.com","password":"p","role":"COURIER"}""")
+            setBody("""{"organizationId":"$orgB","name":"Emp","email":"emp2@x.com","password":"password123","role":"COURIER"}""")
         }
         assertEquals(HttpStatusCode.Forbidden, res.status)
 
@@ -79,7 +79,7 @@ class UsersIntegrationTest : IntegrationTestBase() {
         val res = client.post("/users") {
             header(HttpHeaders.Authorization, "Bearer $saToken")
             contentType(ContentType.Application.Json)
-            setBody("""{"organizationId":"$orgB","name":"Emp","email":"emp3@x.com","password":"p","role":"COURIER"}""")
+            setBody("""{"organizationId":"$orgB","name":"Emp","email":"emp3@x.com","password":"password123","role":"COURIER"}""")
         }
         assertEquals(HttpStatusCode.Created, res.status)
     }
@@ -93,7 +93,7 @@ class UsersIntegrationTest : IntegrationTestBase() {
         val created = client.post("/users") {
             header(HttpHeaders.Authorization, "Bearer $adminToken")
             contentType(ContentType.Application.Json)
-            setBody("""{"organizationId":"$orgId","name":"U","email":"u@x.com","password":"p","role":"COURIER"}""")
+            setBody("""{"organizationId":"$orgId","name":"U","email":"u@x.com","password":"password123","role":"COURIER"}""")
         }
         assertEquals(HttpStatusCode.Created, created.status)
         val userId = Json.parseToJsonElement(created.bodyAsText()).jsonObject["id"]!!.jsonPrimitive.content
@@ -165,7 +165,7 @@ class UsersIntegrationTest : IntegrationTestBase() {
         val created = client.post("/users") {
             header(HttpHeaders.Authorization, "Bearer $adminToken")
             contentType(ContentType.Application.Json)
-            setBody("""{"organizationId":"$orgId","name":"Del","email":"del@x.com","password":"p","role":"COURIER"}""")
+            setBody("""{"organizationId":"$orgId","name":"Del","email":"del@x.com","password":"password123","role":"COURIER"}""")
         }
         val userId = Json.parseToJsonElement(created.bodyAsText()).jsonObject["id"]!!.jsonPrimitive.content
 
@@ -201,12 +201,12 @@ class UsersIntegrationTest : IntegrationTestBase() {
         client.post("/users") {
             header(HttpHeaders.Authorization, "Bearer $adminToken")
             contentType(ContentType.Application.Json)
-            setBody("""{"organizationId":"$orgA","name":"A1","email":"a1@x.com","password":"p","role":"COURIER"}""")
+            setBody("""{"organizationId":"$orgA","name":"A1","email":"a1@x.com","password":"password123","role":"COURIER"}""")
         }.let { assertEquals(HttpStatusCode.Created, it.status) }
         client.post("/users") {
             header(HttpHeaders.Authorization, "Bearer $adminToken")
             contentType(ContentType.Application.Json)
-            setBody("""{"organizationId":"$orgA","name":"A2","email":"a2@x.com","password":"p","role":"COURIER"}""")
+            setBody("""{"organizationId":"$orgA","name":"A2","email":"a2@x.com","password":"password123","role":"COURIER"}""")
         }.let { assertEquals(HttpStatusCode.Created, it.status) }
         // seed in B (outside admin org)
         registerUser(orgB, "b1@x.com", "COURIER")

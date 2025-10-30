@@ -67,6 +67,7 @@ fun Application.configureDatabases() {
         SchemaUtils.create(
             Organizations,
             Users,
+            Addresses,
             Clients,
             Providers,
             Couriers,

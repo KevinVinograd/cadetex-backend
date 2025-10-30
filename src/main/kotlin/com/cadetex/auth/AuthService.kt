@@ -2,27 +2,35 @@ package com.cadetex.auth
 
 import com.cadetex.model.User
 import com.cadetex.model.UserRole
-import com.cadetex.repository.UserRepository
-import org.mindrot.jbcrypt.BCrypt
+import com.cadetex.service.UserService
+import org.slf4j.LoggerFactory
+
+private val logger = LoggerFactory.getLogger("AuthService")
 
 class AuthService {
 
-    private val userRepository = UserRepository()
+    private val userService = UserService()
     private val jwtService = JwtService()
 
     suspend fun login(email: String, password: String): AuthResult {
-        val user = userRepository.findByEmail(email)
+        val userResult = userService.findByEmail(email)
+        
+        when (userResult) {
+            is com.cadetex.service.Result.Success -> {
+                val user = userResult.value ?: return AuthResult.Error("Usuario no encontrado")
+                
+                if (!userService.verifyPassword(password, user.passwordHash)) {
+                    return AuthResult.Error("Contraseña incorrecta")
+                }
 
-        if (user == null) {
-            return AuthResult.Error("Usuario no encontrado")
+                val token = jwtService.generateToken(user)
+                return AuthResult.Success(user, token)
+            }
+            is com.cadetex.service.Result.Error -> {
+                logger.warn("Login failed: ${userResult.message}")
+                return AuthResult.Error("Usuario no encontrado")
+            }
         }
-
-        if (!BCrypt.checkpw(password, user.passwordHash)) {
-            return AuthResult.Error("Contraseña incorrecta")
-        }
-
-        val token = jwtService.generateToken(user)
-        return AuthResult.Success(user, token)
     }
 
     suspend fun register(
@@ -33,27 +41,48 @@ class AuthService {
             role: UserRole
     ): AuthResult {
         // Verificar si el usuario ya existe
-        val existingUser = userRepository.findByEmail(email)
-        if (existingUser != null) {
-            return AuthResult.Error("El usuario ya existe")
+        val existingUserResult = userService.findByEmail(email)
+        
+        when (existingUserResult) {
+            is com.cadetex.service.Result.Success -> {
+                if (existingUserResult.value != null) {
+                    return AuthResult.Error("El usuario ya existe")
+                }
+            }
+            is com.cadetex.service.Result.Error -> {
+                // Si hay un error al buscar, continuar con el registro
+                logger.debug("No se encontró usuario existente, continuando con registro")
+            }
         }
 
-        // Crear nuevo usuario
-        val createRequest =
-                com.cadetex.model.CreateUserRequest(
-                        organizationId = organizationId,
-                        name = name,
-                        email = email,
-                        password = password, // El repository se encarga del hashing
-                        role = role
-                )
+        // Crear nuevo usuario usando UserService
+        val createRequest = com.cadetex.model.CreateUserRequest(
+                organizationId = organizationId,
+                name = name,
+                email = email,
+                password = password,
+                role = role
+        )
 
-        try {
-            val user = userRepository.create(createRequest)
-            val token = jwtService.generateToken(user)
-            return AuthResult.Success(user, token)
-        } catch (e: Exception) {
-            return AuthResult.Error("Error al crear usuario: ${e.message}")
+        val createResult = userService.create(createRequest)
+        
+        when (createResult) {
+            is com.cadetex.service.Result.Success -> {
+                val user = createResult.value
+                val token = jwtService.generateToken(user)
+                return AuthResult.Success(user, token)
+            }
+            is com.cadetex.service.Result.Error -> {
+                logger.error("Error creating user: ${createResult.message}")
+                return AuthResult.Error("Error al crear usuario: ${createResult.message}")
+            }
+        }
+    }
+
+    suspend fun findUserById(userId: String): User? {
+        return when (val result = userService.findById(userId)) {
+            is com.cadetex.service.Result.Success -> result.value
+            is com.cadetex.service.Result.Error -> null
         }
     }
 

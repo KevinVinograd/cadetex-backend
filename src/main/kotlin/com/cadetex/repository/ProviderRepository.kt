@@ -1,114 +1,202 @@
 package com.cadetex.repository
 
+import com.cadetex.database.tables.Addresses
 import com.cadetex.database.tables.Providers
+import com.cadetex.model.Address
 import com.cadetex.model.Provider
-import com.cadetex.model.CreateProviderRequest
-import com.cadetex.model.UpdateProviderRequest
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
-import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
-import kotlinx.datetime.Clock
 import java.util.*
 
+/**
+ * Repository simplificado: solo queries simples
+ * NO maneja transacciones - debe ser llamado desde dentro de una transacción (en los Services)
+ * Toda la lógica de negocio está en ProviderService
+ */
 class ProviderRepository {
 
-
-    suspend fun findById(id: String): Provider? = newSuspendedTransaction {
-        Providers
+    /**
+     * Buscar proveedor por ID
+     * Usa índice: id es PRIMARY KEY (automático), address_id tiene idx_providers_address_id
+     * Debe ejecutarse dentro de una transacción activa
+     */
+    fun findById(id: UUID): Provider? {
+        val row = (Providers leftJoin Addresses)
             .selectAll()
-            .where { Providers.id eq UUID.fromString(id) }
-            .map(::rowToProvider)
+            .where { Providers.id eq id }
             .singleOrNull()
+        
+        return row?.let { rowToProvider(it) }
     }
 
-    suspend fun findByOrganization(organizationId: String): List<Provider> = newSuspendedTransaction {
-        Providers
+    /**
+     * Buscar proveedores por organización
+     * Usa índice: idx_providers_organization_id
+     * Debe ejecutarse dentro de una transacción activa
+     */
+    fun findByOrganization(organizationId: UUID): List<Provider> {
+        return (Providers leftJoin Addresses)
             .selectAll()
-            .where { Providers.organizationId eq UUID.fromString(organizationId) }
+            .where { Providers.organizationId eq organizationId }
             .map(::rowToProvider)
     }
 
-    suspend fun searchByName(organizationId: String, name: String): List<Provider> = newSuspendedTransaction {
-        Providers
+    /**
+     * Buscar por nombre (LIKE search)
+     * Usa índice: idx_providers_org_name (composite: organization_id, name)
+     * Debe ejecutarse dentro de una transacción activa
+     */
+    fun searchByName(organizationId: UUID, name: String): List<Provider> {
+        return (Providers leftJoin Addresses)
             .selectAll()
             .where { 
-                (Providers.organizationId eq UUID.fromString(organizationId)) and
+                (Providers.organizationId eq organizationId) and
                 (Providers.name like "%$name%")
             }
             .map(::rowToProvider)
     }
 
-    suspend fun searchByCity(organizationId: String, city: String): List<Provider> = newSuspendedTransaction {
-        Providers
+    /**
+     * Buscar por ciudad
+     * Usa índices: idx_providers_organization_id, idx_providers_address_id, idx_addresses_city
+     * Debe ejecutarse dentro de una transacción activa
+     */
+    fun searchByCity(organizationId: UUID, city: String): List<Provider> {
+        return (Providers leftJoin Addresses)
             .selectAll()
             .where { 
-                (Providers.organizationId eq UUID.fromString(organizationId)) and
-                (Providers.city like "%$city%")
+                (Providers.organizationId eq organizationId) and
+                (Addresses.city like "%$city%")
             }
             .map(::rowToProvider)
     }
 
-    suspend fun create(request: CreateProviderRequest): Provider = newSuspendedTransaction {
-        val now = Clock.System.now()
+    /**
+     * Verificar si existe un proveedor con el mismo nombre en la organización
+     * Usa índice: idx_providers_org_name
+     * Debe ejecutarse dentro de una transacción activa
+     */
+    fun existsByName(organizationId: UUID, name: String): Boolean {
+        return Providers
+            .select(Providers.id)
+            .where { 
+                (Providers.organizationId eq organizationId) and
+                (Providers.name eq name.trim())
+            }
+            .firstOrNull() != null
+    }
+
+    /**
+     * Verificar si existe otro proveedor con el mismo nombre (excluyendo uno específico)
+     * Usa índice: idx_providers_org_name
+     * Debe ejecutarse dentro de una transacción activa
+     */
+    fun existsByNameExcludingId(organizationId: UUID, name: String, excludeId: UUID): Boolean {
+        return Providers
+            .select(Providers.id)
+            .where { 
+                (Providers.organizationId eq organizationId) and
+                (Providers.name eq name.trim())
+            }
+            .firstOrNull()
+            ?.let { row ->
+                val foundId = row[Providers.id].value
+                foundId != excludeId
+            } ?: false
+    }
+
+    /**
+     * Insertar nuevo proveedor
+     * Retorna el ID insertado
+     * Debe ejecutarse dentro de una transacción activa
+     */
+    fun insert(
+        organizationId: UUID,
+        name: String,
+        addressId: UUID? = null,
+        contactName: String? = null,
+        contactPhone: String? = null,
+        createdAt: kotlinx.datetime.Instant,
+        updatedAt: kotlinx.datetime.Instant
+    ): UUID {
         val id = UUID.randomUUID()
 
         Providers.insert {
             it[Providers.id] = id
-            it[organizationId] = UUID.fromString(request.organizationId)
-            it[name] = request.name
-            it[address] = request.address
-            it[city] = request.city
-            it[province] = request.province
-            it[contactName] = request.contactName
-            it[contactPhone] = request.contactPhone
-            it[createdAt] = now
-            it[updatedAt] = now
+            it[Providers.organizationId] = organizationId
+            it[Providers.name] = name
+            it[Providers.addressId] = addressId
+            it[Providers.contactName] = contactName
+            it[Providers.contactPhone] = contactPhone
+            it[Providers.createdAt] = createdAt
+            it[Providers.updatedAt] = updatedAt
+        }
+        
+        return id
+    }
+
+    /**
+     * Actualizar proveedor existente
+     * Usa índice: id es PRIMARY KEY (automático)
+     * Debe ejecutarse dentro de una transacción activa
+     */
+    fun update(
+        id: UUID,
+        name: String? = null,
+        addressId: UUID? = null,
+        contactName: String? = null,
+        contactPhone: String? = null,
+        updatedAt: kotlinx.datetime.Instant
+    ): Boolean {
+        val updated = Providers.update({ Providers.id eq id }) { row ->
+            name?.let { row[Providers.name] = it }
+            addressId?.let { row[Providers.addressId] = it }
+            contactName?.let { row[Providers.contactName] = it }
+            contactPhone?.let { row[Providers.contactPhone] = it }
+            row[Providers.updatedAt] = updatedAt
         }
 
-        Provider(
-            id = id.toString(),
-            organizationId = request.organizationId,
-            name = request.name,
-            address = request.address,
-            city = request.city,
-            province = request.province,
-            contactName = request.contactName,
-            contactPhone = request.contactPhone,
-            createdAt = now.toString(),
-            updatedAt = now.toString()
+        return updated > 0
+    }
+
+    /**
+     * Eliminar proveedor
+     * Usa índice: id es PRIMARY KEY (automático)
+     * Debe ejecutarse dentro de una transacción activa
+     */
+    fun delete(id: UUID): Boolean {
+        return Providers.deleteWhere { Providers.id eq id } > 0
+    }
+
+    /**
+     * Mapper de ResultRow a Provider
+     */
+    private fun rowToProvider(row: ResultRow): Provider {
+        val address = if (row.getOrNull(Addresses.id) != null) {
+            Address(
+                id = row[Addresses.id].value.toString(),
+                street = row[Addresses.street],
+                streetNumber = row[Addresses.streetNumber],
+                addressComplement = row[Addresses.addressComplement],
+                city = row[Addresses.city],
+                province = row[Addresses.province],
+                postalCode = row[Addresses.postalCode],
+                createdAt = row[Addresses.createdAt].toString(),
+                updatedAt = row[Addresses.updatedAt].toString()
+            )
+        } else {
+            null
+        }
+        
+        return Provider(
+            id = row[Providers.id].value.toString(),
+            organizationId = row[Providers.organizationId].value.toString(),
+            name = row[Providers.name],
+            address = address,
+            contactName = row[Providers.contactName],
+            contactPhone = row[Providers.contactPhone],
+            createdAt = row[Providers.createdAt].toString(),
+            updatedAt = row[Providers.updatedAt].toString()
         )
     }
-
-    suspend fun update(id: String, updateRequest: UpdateProviderRequest): Provider? = newSuspendedTransaction {
-        val now = Clock.System.now()
-
-        val updated = Providers.update({ Providers.id eq UUID.fromString(id) }) { row ->
-            updateRequest.name?.let { newName -> row[Providers.name] = newName }
-            updateRequest.address?.let { newAddress -> row[Providers.address] = newAddress }
-            updateRequest.city?.let { newCity -> row[Providers.city] = newCity }
-            updateRequest.province?.let { newProvince -> row[Providers.province] = newProvince }
-            updateRequest.contactName?.let { newContactName -> row[Providers.contactName] = newContactName }
-            updateRequest.contactPhone?.let { newContactPhone -> row[Providers.contactPhone] = newContactPhone }
-            row[Providers.updatedAt] = now
-        }
-
-        if (updated > 0) findById(id) else null
-    }
-
-    suspend fun delete(id: String): Boolean = newSuspendedTransaction {
-        Providers.deleteWhere { Providers.id eq UUID.fromString(id) } > 0
-    }
-
-    private fun rowToProvider(row: ResultRow) = Provider(
-        id = row[Providers.id].value.toString(),
-        organizationId = row[Providers.organizationId].value.toString(),
-        name = row[Providers.name],
-        address = row[Providers.address],
-        city = row[Providers.city],
-        province = row[Providers.province],
-        contactName = row[Providers.contactName],
-        contactPhone = row[Providers.contactPhone],
-        createdAt = row[Providers.createdAt].toString(),
-        updatedAt = row[Providers.updatedAt].toString()
-    )
 }

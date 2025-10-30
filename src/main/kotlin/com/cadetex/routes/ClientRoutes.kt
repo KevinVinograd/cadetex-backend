@@ -2,7 +2,9 @@ package com.cadetex.routes
 
 import com.cadetex.auth.getUserData
 import com.cadetex.model.*
-import com.cadetex.repository.ClientRepository
+import com.cadetex.service.ClientService
+import com.cadetex.service.error
+import com.cadetex.service.success
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
@@ -14,7 +16,7 @@ import org.slf4j.LoggerFactory
 private val logger = LoggerFactory.getLogger("ClientRoutes")
 
 fun Route.clientRoutes() {
-    val clientRepository = ClientRepository()
+    val clientService = ClientService()
 
     route("/clients") {
         authenticate("jwt") {
@@ -22,23 +24,27 @@ fun Route.clientRoutes() {
                 val userData = call.getUserData()
                 val organizationId = userData?.organizationId ?: return@get call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "No se pudo obtener la organización del usuario"))
                 
-                val clients = clientRepository.findByOrganization(organizationId)
-                call.respond(clients)
+                when (val result = clientService.findByOrganization(organizationId)) {
+                    is com.cadetex.service.Result.Success -> call.respond(result.value)
+                    is com.cadetex.service.Result.Error -> call.respond(HttpStatusCode.BadRequest, mapOf("error" to result.message))
+                }
             }
 
             get("/{id}") {
                 val id = call.parameters["id"] ?: return@get call.respond(HttpStatusCode.BadRequest)
-                val client = clientRepository.findById(id)
-                if (client != null) {
-                    val userData = call.getUserData()
-                    // Verificar que el cliente pertenece a la misma organización
-                    if (userData?.role == "SUPERADMIN" || client.organizationId == userData?.organizationId) {
-                        call.respond(client)
-                    } else {
-                        call.respond(HttpStatusCode.Forbidden, mapOf("error" to "No tienes permisos para ver este cliente"))
+                
+                when (val result = clientService.findById(id)) {
+                    is com.cadetex.service.Result.Success -> {
+                        val client = result.value
+                        val userData = call.getUserData()
+                        // Verificar que el cliente pertenece a la misma organización
+                        if (userData?.role == "SUPERADMIN" || client.organizationId == userData?.organizationId) {
+                            call.respond(client)
+                        } else {
+                            call.respond(HttpStatusCode.Forbidden, mapOf("error" to "No tienes permisos para ver este cliente"))
+                        }
                     }
-                } else {
-                    call.respond(HttpStatusCode.NotFound)
+                    is com.cadetex.service.Result.Error -> call.respond(HttpStatusCode.NotFound, mapOf("error" to result.message))
                 }
             }
 
@@ -46,8 +52,10 @@ fun Route.clientRoutes() {
                 val organizationId = call.parameters["organizationId"] ?: return@get call.respond(HttpStatusCode.BadRequest)
                 val userData = call.getUserData()
                 if (userData?.role == "SUPERADMIN" || userData?.organizationId == organizationId) {
-                    val clients = clientRepository.findByOrganization(organizationId)
-                    call.respond(clients)
+                    when (val result = clientService.findByOrganization(organizationId)) {
+                        is com.cadetex.service.Result.Success -> call.respond(result.value)
+                        is com.cadetex.service.Result.Error -> call.respond(HttpStatusCode.BadRequest, mapOf("error" to result.message))
+                    }
                 } else {
                     call.respond(HttpStatusCode.Forbidden, mapOf("error" to "No tienes permisos para ver clientes de esta organización"))
                 }
@@ -58,8 +66,10 @@ fun Route.clientRoutes() {
                 val name = call.parameters["name"] ?: return@get call.respond(HttpStatusCode.BadRequest)
                 val userData = call.getUserData()
                 if (userData?.role == "SUPERADMIN" || userData?.organizationId == organizationId) {
-                    val clients = clientRepository.searchByName(organizationId, name)
-                    call.respond(clients)
+                    when (val result = clientService.searchByName(organizationId, name)) {
+                        is com.cadetex.service.Result.Success -> call.respond(result.value)
+                        is com.cadetex.service.Result.Error -> call.respond(HttpStatusCode.BadRequest, mapOf("error" to result.message))
+                    }
                 } else {
                     call.respond(HttpStatusCode.Forbidden, mapOf("error" to "No tienes permisos para buscar en esta organización"))
                 }
@@ -70,8 +80,10 @@ fun Route.clientRoutes() {
                 val city = call.parameters["city"] ?: return@get call.respond(HttpStatusCode.BadRequest)
                 val userData = call.getUserData()
                 if (userData?.role == "SUPERADMIN" || userData?.organizationId == organizationId) {
-                    val clients = clientRepository.searchByCity(organizationId, city)
-                    call.respond(clients)
+                    when (val result = clientService.searchByCity(organizationId, city)) {
+                        is com.cadetex.service.Result.Success -> call.respond(result.value)
+                        is com.cadetex.service.Result.Error -> call.respond(HttpStatusCode.BadRequest, mapOf("error" to result.message))
+                    }
                 } else {
                     call.respond(HttpStatusCode.Forbidden, mapOf("error" to "No tienes permisos para buscar en esta organización"))
                 }
@@ -91,11 +103,14 @@ fun Route.clientRoutes() {
                             return@post
                         }
                         
-                        val client = clientRepository.create(request)
-                        call.respond(HttpStatusCode.Created, client)
+                        when (val result = clientService.create(request)) {
+                            is com.cadetex.service.Result.Success -> call.respond(HttpStatusCode.Created, result.value)
+                            is com.cadetex.service.Result.Error -> call.respond(HttpStatusCode.BadRequest, mapOf("error" to result.message))
+                        }
                     } catch (e: Exception) {
                         logger.error("Error creating client: ${e.message}", e)
-                        call.respond(HttpStatusCode.BadRequest, mapOf("error" to e.message))
+                        val errorMessage = e.message ?: "Error desconocido"
+                        call.respond(HttpStatusCode.BadRequest, mapOf("error" to errorMessage))
                     }
                 } else {
                     logger.warn("Unauthorized user trying to create client: role=${userData?.role}")
@@ -106,53 +121,51 @@ fun Route.clientRoutes() {
             put("/{id}") {
                 val id = call.parameters["id"] ?: return@put call.respond(HttpStatusCode.BadRequest)
                 val userData = call.getUserData()
-                val existingClient = clientRepository.findById(id)
                 
-                if (existingClient == null) {
-                    call.respond(HttpStatusCode.NotFound)
-                    return@put
-                }
-                
-                // Verificar permisos
-                if (userData?.role == "SUPERADMIN" || 
-                    (userData?.role == "ORGADMIN" && existingClient.organizationId == userData.organizationId)) {
-                    try {
-                        val request = call.receive<UpdateClientRequest>()
-                        val client = clientRepository.update(id, request)
-                        if (client != null) {
-                            call.respond(client)
+                when (val findResult = clientService.findById(id)) {
+                    is com.cadetex.service.Result.Success -> {
+                        val existingClient = findResult.value
+                        
+                        // Verificar permisos
+                        if (userData?.role == "SUPERADMIN" || 
+                            (userData?.role == "ORGADMIN" && existingClient.organizationId == userData.organizationId)) {
+                            try {
+                                val request = call.receive<UpdateClientRequest>()
+                                when (val updateResult = clientService.update(id, request)) {
+                                    is com.cadetex.service.Result.Success -> call.respond(updateResult.value)
+                                    is com.cadetex.service.Result.Error -> call.respond(HttpStatusCode.BadRequest, mapOf("error" to updateResult.message))
+                                }
+                            } catch (e: Exception) {
+                                call.respond(HttpStatusCode.BadRequest, mapOf("error" to e.message))
+                            }
                         } else {
-                            call.respond(HttpStatusCode.NotFound)
+                            call.respond(HttpStatusCode.Forbidden, mapOf("error" to "No tienes permisos para actualizar este cliente"))
                         }
-                    } catch (e: Exception) {
-                        call.respond(HttpStatusCode.BadRequest, mapOf("error" to e.message))
                     }
-                } else {
-                    call.respond(HttpStatusCode.Forbidden, mapOf("error" to "No tienes permisos para actualizar este cliente"))
+                    is com.cadetex.service.Result.Error -> call.respond(HttpStatusCode.NotFound, mapOf("error" to findResult.message))
                 }
             }
 
             delete("/{id}") {
                 val id = call.parameters["id"] ?: return@delete call.respond(HttpStatusCode.BadRequest)
                 val userData = call.getUserData()
-                val existingClient = clientRepository.findById(id)
                 
-                if (existingClient == null) {
-                    call.respond(HttpStatusCode.NotFound)
-                    return@delete
-                }
-                
-                // Solo superadmin y orgadmin pueden eliminar clientes
-                if (userData?.role == "SUPERADMIN" || 
-                    (userData?.role == "ORGADMIN" && existingClient.organizationId == userData.organizationId)) {
-                    val deleted = clientRepository.delete(id)
-                    if (deleted) {
-                        call.respond(HttpStatusCode.NoContent)
-                    } else {
-                        call.respond(HttpStatusCode.NotFound)
+                when (val findResult = clientService.findById(id)) {
+                    is com.cadetex.service.Result.Success -> {
+                        val existingClient = findResult.value
+                        
+                        // Solo superadmin y orgadmin pueden eliminar clientes
+                        if (userData?.role == "SUPERADMIN" || 
+                            (userData?.role == "ORGADMIN" && existingClient.organizationId == userData.organizationId)) {
+                            when (val deleteResult = clientService.delete(id)) {
+                                is com.cadetex.service.Result.Success -> call.respond(HttpStatusCode.NoContent)
+                                is com.cadetex.service.Result.Error -> call.respond(HttpStatusCode.NotFound, mapOf("error" to deleteResult.message))
+                            }
+                        } else {
+                            call.respond(HttpStatusCode.Forbidden, mapOf("error" to "No tienes permisos para eliminar este cliente"))
+                        }
                     }
-                } else {
-                    call.respond(HttpStatusCode.Forbidden, mapOf("error" to "No tienes permisos para eliminar este cliente"))
+                    is com.cadetex.service.Result.Error -> call.respond(HttpStatusCode.NotFound, mapOf("error" to findResult.message))
                 }
             }
         }

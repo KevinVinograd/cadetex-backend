@@ -3,7 +3,6 @@ package com.cadetex.routes
 import com.cadetex.auth.AuthService
 import com.cadetex.auth.AuthResult
 import com.cadetex.model.UserRole
-import com.cadetex.repository.UserRepository
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.request.*
@@ -15,7 +14,6 @@ private val logger = LoggerFactory.getLogger("AuthRoutes")
 
 fun Route.authRoutes() {
     val authService = AuthService()
-    val userRepository = UserRepository()
 
     route("/auth") {
         post("/login") {
@@ -99,7 +97,7 @@ fun Route.authRoutes() {
                 val tokenData = authService.validateToken(token)
                 if (tokenData != null) {
                     // Buscar el usuario completo en la base de datos
-                    val user = userRepository.findById(tokenData.userId)
+                    val user = authService.findUserById(tokenData.userId)
                     if (user != null) {
                         call.respond(HttpStatusCode.OK, ValidateResponse(
                             valid = true,
