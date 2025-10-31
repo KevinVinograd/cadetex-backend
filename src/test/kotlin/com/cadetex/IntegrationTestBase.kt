@@ -125,6 +125,8 @@ abstract class IntegrationTestBase {
                     "database.password" to pg.password,
                     "database.maxPoolSize" to "5"
                 )
+                // Deshabilitar S3 en tests
+                System.setProperty("S3_DISABLED", "true")
             }
             application { module() }
             val res = client.get("/")

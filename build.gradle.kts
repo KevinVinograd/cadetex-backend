@@ -60,6 +60,10 @@ dependencies {
     // OpenAPI/Swagger
     implementation("io.ktor:ktor-server-openapi:3.2.2")
 
+    // AWS SDK for S3
+    implementation("software.amazon.awssdk:s3:2.20.162")
+    implementation("software.amazon.awssdk:auth:2.20.162")
+
     // Testing
     testImplementation("io.ktor:ktor-server-test-host:3.2.2")
     testImplementation("io.ktor:ktor-serialization-kotlinx-json:3.2.2")

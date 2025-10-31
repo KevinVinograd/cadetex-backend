@@ -56,7 +56,25 @@ fun Route.taskRoutes() {
                             val taskPhotoService = com.cadetex.service.TaskPhotoService()
                             when (val photosResult = taskPhotoService.findByTaskId(id)) {
                                 is com.cadetex.service.Result.Success -> {
-                                    call.respond(photosResult.value)
+                                    val allPhotos = mutableListOf<com.cadetex.model.TaskPhoto>()
+                                    
+                                    // Agregar foto de recibo si existe
+                                    if (!task.receiptPhotoUrl.isNullOrBlank()) {
+                                        allPhotos.add(
+                                            com.cadetex.model.TaskPhoto(
+                                                id = "receipt",
+                                                taskId = id,
+                                                photoUrl = task.receiptPhotoUrl!!,
+                                                photoType = "RECEIPT",
+                                                createdAt = null
+                                            )
+                                        )
+                                    }
+                                    
+                                    // Agregar fotos adicionales
+                                    allPhotos.addAll(photosResult.value)
+                                    
+                                    call.respond(allPhotos)
                                 }
                                 is com.cadetex.service.Result.Error -> {
                                     call.respond(HttpStatusCode.InternalServerError, mapOf("error" to photosResult.message))
@@ -266,16 +284,17 @@ fun Route.taskRoutes() {
                             (userData?.role == "COURIER" && existingTask.organizationId == userData.organizationId)) {
                             try {
                                 val multipartData = call.receiveMultipart()
-                                var photoUrl: String? = null
+                                var photoBytes: ByteArray? = null
+                                var contentType: String = "image/jpeg" // Por defecto JPEG
                                 var isReceipt = false
                                 
                                 multipartData.forEachPart { part ->
                                     when (part) {
                                         is PartData.FileItem -> {
                                             if (part.name == "photo") {
-                                                val bytes = part.streamProvider().readBytes()
-                                                val base64 = java.util.Base64.getEncoder().encodeToString(bytes)
-                                                photoUrl = "data:image/jpeg;base64,$base64"
+                                                photoBytes = part.streamProvider().readBytes()
+                                                // Usar el contentType del multipart si está disponible
+                                                contentType = part.contentType?.toString() ?: "image/jpeg"
                                             }
                                         }
                                         is PartData.FormItem -> {
@@ -289,33 +308,57 @@ fun Route.taskRoutes() {
                                     part.dispose()
                                 }
                                 
-                                if (photoUrl != null) {
-                                    // Si es la foto obligatoria (receipt), actualizar en la tarea
-                                    if (isReceipt) {
-                                        val updateRequest = UpdateTaskRequest(receiptPhotoUrl = photoUrl)
-                                        when (val updateResult = taskService.update(id, updateRequest)) {
-                                            is com.cadetex.service.Result.Success -> {
-                                                call.respond(mapOf("photoUrl" to photoUrl))
-                                            }
-                                            is com.cadetex.service.Result.Error -> {
-                                                call.respond(HttpStatusCode.InternalServerError, mapOf("error" to updateResult.message))
+                                if (photoBytes != null) {
+                                    // Determinar extensión del tipo MIME
+                                    val extension = when {
+                                        contentType.contains("png", ignoreCase = true) -> "png"
+                                        contentType.contains("jpeg", ignoreCase = true) -> "jpg"
+                                        contentType.contains("jpg", ignoreCase = true) -> "jpg"
+                                        contentType.contains("webp", ignoreCase = true) -> "webp"
+                                        else -> "jpg"
+                                    }
+                                    
+                                    // Subir a S3
+                                    val s3Service = com.cadetex.service.S3Service()
+                                    val photoType = if (isReceipt) "RECEIPT" else "ADDITIONAL"
+                                    val s3Key = s3Service.generateTaskPhotoKey(id, photoType, extension)
+                                    val inputStream = java.io.ByteArrayInputStream(photoBytes)
+                                    
+                                    when (val uploadResult = s3Service.uploadFile(s3Key, inputStream, contentType)) {
+                                        is com.cadetex.service.Result.Success -> {
+                                            val photoUrl = uploadResult.value
+                                            
+                                            // Si es la foto obligatoria (receipt), actualizar en la tarea
+                                            if (isReceipt) {
+                                                val updateRequest = UpdateTaskRequest(receiptPhotoUrl = photoUrl)
+                                                when (val updateResult = taskService.update(id, updateRequest)) {
+                                                    is com.cadetex.service.Result.Success -> {
+                                                        call.respond(mapOf("photoUrl" to photoUrl))
+                                                    }
+                                                    is com.cadetex.service.Result.Error -> {
+                                                        call.respond(HttpStatusCode.InternalServerError, mapOf("error" to updateResult.message))
+                                                    }
+                                                }
+                                            } else {
+                                                // Foto adicional: crear en task_photos
+                                                val taskPhotoService = com.cadetex.service.TaskPhotoService()
+                                                val createRequest = com.cadetex.model.CreateTaskPhotoRequest(
+                                                    taskId = id,
+                                                    photoUrl = photoUrl,
+                                                    photoType = "ADDITIONAL"
+                                                )
+                                                when (val photoResult = taskPhotoService.create(createRequest)) {
+                                                    is com.cadetex.service.Result.Success -> {
+                                                        call.respond(mapOf("photoUrl" to photoUrl, "photoId" to photoResult.value.id))
+                                                    }
+                                                    is com.cadetex.service.Result.Error -> {
+                                                        call.respond(HttpStatusCode.BadRequest, mapOf("error" to photoResult.message))
+                                                    }
+                                                }
                                             }
                                         }
-                                    } else {
-                                        // Foto adicional: crear en task_photos
-                                        val taskPhotoService = com.cadetex.service.TaskPhotoService()
-                                        val createRequest = com.cadetex.model.CreateTaskPhotoRequest(
-                                            taskId = id,
-                                            photoUrl = photoUrl,
-                                            photoType = "ADDITIONAL"
-                                        )
-                                        when (val photoResult = taskPhotoService.create(createRequest)) {
-                                            is com.cadetex.service.Result.Success -> {
-                                                call.respond(mapOf("photoUrl" to photoUrl, "photoId" to photoResult.value.id))
-                                            }
-                                            is com.cadetex.service.Result.Error -> {
-                                                call.respond(HttpStatusCode.BadRequest, mapOf("error" to photoResult.message))
-                                            }
+                                        is com.cadetex.service.Result.Error -> {
+                                            call.respond(HttpStatusCode.InternalServerError, mapOf("error" to uploadResult.message))
                                         }
                                     }
                                 } else {
