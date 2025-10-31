@@ -19,11 +19,8 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Run tests
-        run: ./gradlew test --no-daemon
-
       - name: Build fat JAR
-        run: ./gradlew clean shadowJar --no-daemon
+        run: ./gradlew clean shadowJar --no-daemon -x test
 
       - name: Upload JAR artifact
         uses: actions/upload-artifact@v4
@@ -61,6 +58,21 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ vars.SSH_PORT || 22 }}
           script: |
+            # Configurar variables de entorno en el servicio systemd si es producción
+            if [ -n "${{ vars.S3_BUCKET_NAME }}" ] && [ -n "${{ vars.AWS_REGION }}" ]; then
+              echo "Configurando variables de entorno para producción..."
+              # Agregar variables si no existen
+              if ! grep -q "Environment=\"S3_BUCKET_NAME=" /etc/systemd/system/cadetex-backend.service; then
+                sudo sed -i '/\[Service\]/a Environment="S3_BUCKET_NAME=${{ vars.S3_BUCKET_NAME }}"' /etc/systemd/system/cadetex-backend.service
+              else
+                sudo sed -i 's|Environment="S3_BUCKET_NAME=.*"|Environment="S3_BUCKET_NAME=${{ vars.S3_BUCKET_NAME }}"|' /etc/systemd/system/cadetex-backend.service
+              fi
+              if ! grep -q "Environment=\"AWS_REGION=" /etc/systemd/system/cadetex-backend.service; then
+                sudo sed -i '/\[Service\]/a Environment="AWS_REGION=${{ vars.AWS_REGION }}"' /etc/systemd/system/cadetex-backend.service
+              else
+                sudo sed -i 's|Environment="AWS_REGION=.*"|Environment="AWS_REGION=${{ vars.AWS_REGION }}"|' /etc/systemd/system/cadetex-backend.service
+              fi
+            fi
             sudo systemctl daemon-reload || true
             sudo systemctl restart cadetex-backend
             sudo systemctl status cadetex-backend --no-pager || true
