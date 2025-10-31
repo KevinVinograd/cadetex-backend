@@ -129,6 +129,7 @@ class ProviderService(
                 addressId = addressId,
                 contactName = request.contactName,
                 contactPhone = request.contactPhone,
+                isActive = request.isActive,
                 createdAt = now,
                 updatedAt = now
             )
@@ -221,6 +222,7 @@ class ProviderService(
                 addressId = addressId,
                 contactName = updateRequest.contactName,
                 contactPhone = updateRequest.contactPhone,
+                isActive = updateRequest.isActive,
                 updatedAt = now
             )
 

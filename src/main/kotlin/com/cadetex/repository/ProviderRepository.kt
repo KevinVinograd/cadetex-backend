@@ -116,6 +116,7 @@ class ProviderRepository {
         addressId: UUID? = null,
         contactName: String? = null,
         contactPhone: String? = null,
+        isActive: Boolean = true,
         createdAt: kotlinx.datetime.Instant,
         updatedAt: kotlinx.datetime.Instant
     ): UUID {
@@ -128,6 +129,7 @@ class ProviderRepository {
             it[Providers.addressId] = addressId
             it[Providers.contactName] = contactName
             it[Providers.contactPhone] = contactPhone
+            it[Providers.isActive] = isActive
             it[Providers.createdAt] = createdAt
             it[Providers.updatedAt] = updatedAt
         }
@@ -146,6 +148,7 @@ class ProviderRepository {
         addressId: UUID? = null,
         contactName: String? = null,
         contactPhone: String? = null,
+        isActive: Boolean? = null,
         updatedAt: kotlinx.datetime.Instant
     ): Boolean {
         val updated = Providers.update({ Providers.id eq id }) { row ->
@@ -153,6 +156,7 @@ class ProviderRepository {
             addressId?.let { row[Providers.addressId] = it }
             contactName?.let { row[Providers.contactName] = it }
             contactPhone?.let { row[Providers.contactPhone] = it }
+            isActive?.let { row[Providers.isActive] = it }
             row[Providers.updatedAt] = updatedAt
         }
 
@@ -195,6 +199,7 @@ class ProviderRepository {
             address = address,
             contactName = row[Providers.contactName],
             contactPhone = row[Providers.contactPhone],
+            isActive = row[Providers.isActive],
             createdAt = row[Providers.createdAt].toString(),
             updatedAt = row[Providers.updatedAt].toString()
         )

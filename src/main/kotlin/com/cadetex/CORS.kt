@@ -13,7 +13,11 @@ fun Application.configureCORS() {
         allowHeader(HttpHeaders.Authorization)
         allowHeader(HttpHeaders.ContentType)
         allowCredentials = true
-        anyHost() // En producción, especificar dominios específicos
+        // Dominios permitidos (prod)
+        allowHost("kdt-frontend-prod-sa-east-1.s3-website.sa-east-1.amazonaws.com", schemes = listOf("http"))
+        allowHost("don0yfk21axa5.cloudfront.net", schemes = listOf("https", "http"))
+        // Para desarrollo local
+        allowHost("localhost:5173", schemes = listOf("http"))
     }
 }
 

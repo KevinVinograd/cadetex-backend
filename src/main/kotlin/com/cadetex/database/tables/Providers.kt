@@ -10,6 +10,7 @@ object Providers : UUIDTable("providers") {
     val addressId = reference("address_id", Addresses.id, onDelete = ReferenceOption.SET_NULL).nullable()
     val contactName = varchar("contact_name", 100).nullable()
     val contactPhone = varchar("contact_phone", 50).nullable()
+    val isActive = bool("is_active").default(true)
     val createdAt = timestamp("created_at")
     val updatedAt = timestamp("updated_at")
 }

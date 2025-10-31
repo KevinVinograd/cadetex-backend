@@ -1,0 +1,49 @@
+stages:
+  - build
+  - deploy
+
+variables:
+  GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.jvmargs='-Xmx1g -XX:MaxMetaspaceSize=512m'"
+
+build_backend:
+  stage: build
+  image: gradle:8.10.2-jdk17
+  script:
+    - gradle --version
+    - gradle clean shadowJar --no-daemon
+  artifacts:
+    when: on_success
+    paths:
+      - build/libs/cadetex-backend-v2-all.jar
+    expire_in: 1 week
+
+deploy_backend:
+  stage: deploy
+  image: alpine:3.20
+  needs: ["build_backend"]
+  before_script:
+    - apk add --no-cache openssh-client bash
+    - mkdir -p ~/.ssh
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa
+    - chmod 600 ~/.ssh/id_rsa
+    - echo -e "Host *\n\tStrictHostKeyChecking no\n" > ~/.ssh/config
+  script:
+    - scp -P ${SSH_PORT:-22} build/libs/cadetex-backend-v2-all.jar ${SSH_USER}@${SSH_HOST}:${REMOTE_DIR}/
+    - |
+      ssh -p ${SSH_PORT:-22} ${SSH_USER}@${SSH_HOST} << 'EOSSH'
+      sudo systemctl daemon-reload || true
+      sudo systemctl restart cadetex-backend
+      sudo systemctl status cadetex-backend --no-pager || true
+      EOSSH
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+  environment:
+    name: production
+
+# Variables requeridas en GitLab CI/CD > Variables (masked/protected según corresponda):
+#  - SSH_HOST=54.232.198.214
+#  - SSH_USER=ubuntu
+#  - SSH_PORT=22 (opcional)
+#  - SSH_PRIVATE_KEY=<contenido PEM>
+#  - REMOTE_DIR=/opt/cadetex-backend
+
