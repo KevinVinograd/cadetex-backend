@@ -96,6 +96,19 @@ class UserService(
     }
 
     /**
+     * Buscar todos los usuarios (solo para SUPERADMIN)
+     */
+    suspend fun findAll(): Result<List<User>> = org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction {
+        try {
+            val users = userRepository.findAll()
+            success(users)
+        } catch (e: Exception) {
+            logger.error("Error buscando todos los usuarios: ${e.message}", e)
+            error("Error al buscar usuarios: ${e.message}")
+        }
+    }
+
+    /**
      * Crear nuevo usuario
      * Lógica de negocio: validaciones, hash de password
      * Todo en una sola transacción

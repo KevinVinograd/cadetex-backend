@@ -17,9 +17,15 @@ fun Route.userRoutes() {
         authenticate("jwt") {
             get {
                 val userData = call.getUserData()
-                val organizationId = userData?.organizationId ?: return@get call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "No se pudo obtener la organización del usuario"))
                 
-                when (val result = userService.findByOrganization(organizationId)) {
+                // SUPERADMIN puede ver todos los usuarios de todas las organizaciones
+                // Otros roles solo ven usuarios de su organización
+                when (val result = if (userData?.role == "SUPERADMIN") {
+                    userService.findAll()
+                } else {
+                    val organizationId = userData?.organizationId ?: return@get call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "No se pudo obtener la organización del usuario"))
+                    userService.findByOrganization(organizationId)
+                }) {
                     is com.cadetex.service.Result.Success -> call.respond(result.value)
                     is com.cadetex.service.Result.Error -> call.respond(HttpStatusCode.BadRequest, mapOf("error" to result.message))
                 }

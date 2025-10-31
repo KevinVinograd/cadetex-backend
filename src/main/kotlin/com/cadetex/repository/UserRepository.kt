@@ -63,6 +63,16 @@ class UserRepository {
     }
 
     /**
+     * Buscar todos los usuarios
+     * Debe ejecutarse dentro de una transacción activa
+     */
+    fun findAll(): List<User> {
+        return Users
+            .selectAll()
+            .map(::rowToUser)
+    }
+
+    /**
      * Insertar nuevo usuario
      * Retorna el ID insertado
      * Debe ejecutarse dentro de una transacción activa
