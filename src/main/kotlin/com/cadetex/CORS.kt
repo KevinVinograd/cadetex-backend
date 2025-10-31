@@ -17,6 +17,7 @@ fun Application.configureCORS() {
         allowHost("kdt-frontend-prod-sa-east-1.s3-website.sa-east-1.amazonaws.com", schemes = listOf("http"))
         allowHost("don0yfk21axa5.cloudfront.net", schemes = listOf("https", "http"))
         allowHost("kdtgo.com", schemes = listOf("https")) // Dominio personalizado con HTTPS
+        allowHost("www.kdtgo.com", schemes = listOf("https")) // www.kdtgo.com con HTTPS
         // Para desarrollo local
         allowHost("localhost:5173", schemes = listOf("http"))
         allowHost("localhost:8080", schemes = listOf("http"))
