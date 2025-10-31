@@ -7,6 +7,7 @@ import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider
 import software.amazon.awssdk.core.sync.RequestBody
 import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.services.s3.S3Client
+import software.amazon.awssdk.services.s3.model.ObjectCannedACL
 import software.amazon.awssdk.services.s3.model.PutObjectRequest
 import software.amazon.awssdk.services.s3.model.PutObjectResponse
 import java.io.InputStream
@@ -77,11 +78,12 @@ class S3Service {
                 return success(publicUrl)
             }
             
-            // En producción, subir realmente a S3
+            // En producción, subir realmente a S3 con ACL público para lectura
             val putObjectRequest = PutObjectRequest.builder()
                 .bucket(bucketName)
                 .key(key)
                 .contentType(contentType)
+                .acl(ObjectCannedACL.PUBLIC_READ) // Permitir lectura pública del objeto
                 .build()
 
             val putObjectResponse: PutObjectResponse = s3Client!!.putObject(
