@@ -10,7 +10,7 @@ build_backend:
   image: gradle:8.10.2-jdk17
   script:
     - gradle --version
-    - gradle clean shadowJar --no-daemon
+    - gradle clean shadowJar --no-daemon -x test
   artifacts:
     when: on_success
     paths:
