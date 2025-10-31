@@ -325,14 +325,14 @@ fun Route.taskRoutes() {
                                     val inputStream = java.io.ByteArrayInputStream(photoBytes)
                                     
                                     when (val uploadResult = s3Service.uploadFile(s3Key, inputStream, contentType)) {
-                                        is com.cadetex.service.Result.Success -> {
+                                        is com.cadetex.service.Result.Success<String> -> {
                                             val photoUrl = uploadResult.value
                                             
                                             // Si es la foto obligatoria (receipt), actualizar en la tarea
                                             if (isReceipt) {
                                                 val updateRequest = UpdateTaskRequest(receiptPhotoUrl = photoUrl)
                                                 when (val updateResult = taskService.update(id, updateRequest)) {
-                                                    is com.cadetex.service.Result.Success -> {
+                                                    is com.cadetex.service.Result.Success<com.cadetex.model.TaskResponse> -> {
                                                         call.respond(mapOf("photoUrl" to photoUrl))
                                                     }
                                                     is com.cadetex.service.Result.Error -> {
@@ -348,7 +348,7 @@ fun Route.taskRoutes() {
                                                     photoType = "ADDITIONAL"
                                                 )
                                                 when (val photoResult = taskPhotoService.create(createRequest)) {
-                                                    is com.cadetex.service.Result.Success -> {
+                                                    is com.cadetex.service.Result.Success<com.cadetex.model.TaskPhoto> -> {
                                                         call.respond(mapOf("photoUrl" to photoUrl, "photoId" to photoResult.value.id))
                                                     }
                                                     is com.cadetex.service.Result.Error -> {
