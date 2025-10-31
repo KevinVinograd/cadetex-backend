@@ -36,7 +36,7 @@ class S3Service {
         // Leer configuración de entorno
         bucketName = System.getenv("S3_BUCKET_NAME") 
             ?: System.getProperty("S3_BUCKET_NAME") 
-            ?: "cadetex-photos"
+            ?: "kdt-photos-prod-sa-east-1"  // Fallback al bucket real
         
         region = System.getenv("AWS_REGION") 
             ?: System.getProperty("AWS_REGION") 
