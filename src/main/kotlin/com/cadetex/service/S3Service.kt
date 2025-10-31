@@ -51,9 +51,15 @@ class S3Service {
     }
 
     private fun isTestMode(): Boolean {
-        return System.getenv("S3_DISABLED") == "true" 
-            || System.getProperty("S3_DISABLED") == "true"
-            || (System.getenv("AWS_ACCESS_KEY_ID") == null && System.getProperty("AWS_ACCESS_KEY_ID") == null)
+        // Si S3_DISABLED está explícitamente configurado, usar modo test
+        if (System.getenv("S3_DISABLED") == "true" || System.getProperty("S3_DISABLED") == "true") {
+            return true
+        }
+        
+        // Si S3_BUCKET_NAME está configurado como variable de entorno, estamos en producción
+        // En EC2 con IAM role, no necesitamos AWS_ACCESS_KEY_ID - se usa automáticamente
+        val envBucketName = System.getenv("S3_BUCKET_NAME") ?: System.getProperty("S3_BUCKET_NAME")
+        return envBucketName.isNullOrEmpty() // Modo test solo si no hay bucket configurado
     }
 
     /**

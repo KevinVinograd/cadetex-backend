@@ -30,7 +30,22 @@ deploy_backend:
   script:
     - scp -P ${SSH_PORT:-22} build/libs/cadetex-backend-v2-all.jar ${SSH_USER}@${SSH_HOST}:${REMOTE_DIR}/
     - |
-      ssh -p ${SSH_PORT:-22} ${SSH_USER}@${SSH_HOST} << 'EOSSH'
+      ssh -p ${SSH_PORT:-22} ${SSH_USER}@${SSH_HOST} << EOSSH
+      # Configurar variables de entorno en el servicio systemd si es producción
+      if [ -n "$S3_BUCKET_NAME" ] && [ -n "$AWS_REGION" ]; then
+        echo "Configurando variables de entorno para producción..."
+        # Agregar variables si no existen
+        if ! grep -q "Environment=\"S3_BUCKET_NAME=" /etc/systemd/system/cadetex-backend.service; then
+          sudo sed -i '/\[Service\]/a Environment="S3_BUCKET_NAME='$S3_BUCKET_NAME'"' /etc/systemd/system/cadetex-backend.service
+        else
+          sudo sed -i 's|Environment="S3_BUCKET_NAME=.*"|Environment="S3_BUCKET_NAME='$S3_BUCKET_NAME'"|' /etc/systemd/system/cadetex-backend.service
+        fi
+        if ! grep -q "Environment=\"AWS_REGION=" /etc/systemd/system/cadetex-backend.service; then
+          sudo sed -i '/\[Service\]/a Environment="AWS_REGION='$AWS_REGION'"' /etc/systemd/system/cadetex-backend.service
+        else
+          sudo sed -i 's|Environment="AWS_REGION=.*"|Environment="AWS_REGION='$AWS_REGION'"|' /etc/systemd/system/cadetex-backend.service
+        fi
+      fi
       sudo systemctl daemon-reload || true
       sudo systemctl restart cadetex-backend
       sudo systemctl status cadetex-backend --no-pager || true
@@ -38,12 +53,14 @@ deploy_backend:
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
   environment:
-    name: production
+    name: prod
 
-# Variables requeridas en GitLab CI/CD > Variables (masked/protected según corresponda):
+# Variables requeridas en GitLab CI/CD > Variables (configurar en environment "prod"):
 #  - SSH_HOST=54.232.198.214
 #  - SSH_USER=ubuntu
 #  - SSH_PORT=22 (opcional)
 #  - SSH_PRIVATE_KEY=<contenido PEM>
 #  - REMOTE_DIR=/opt/cadetex-backend
+#  - S3_BUCKET_NAME=kdt-photos-prod-sa-east-1 (solo para producción)
+#  - AWS_REGION=sa-east-1 (solo para producción)
 
