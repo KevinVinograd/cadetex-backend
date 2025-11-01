@@ -11,6 +11,28 @@ fun Application.configureRouting() {
             call.respondText("Cadetex API - Sistema de Gestión de Cadetes")
         }
 
+        // Health check endpoint (público, para monitoreo)
+        get("/health") {
+            val runtime = Runtime.getRuntime()
+            val totalMemory = runtime.totalMemory()
+            val freeMemory = runtime.freeMemory()
+            val usedMemory = totalMemory - freeMemory
+            val maxMemory = runtime.maxMemory()
+            
+            call.respond(
+                mapOf(
+                    "status" to "healthy",
+                    "service" to "cadetex-backend",
+                    "memory" to mapOf(
+                        "usedMB" to (usedMemory / 1024 / 1024),
+                        "totalMB" to (totalMemory / 1024 / 1024),
+                        "maxMB" to (maxMemory / 1024 / 1024),
+                        "freeMB" to (freeMemory / 1024 / 1024)
+                    )
+                )
+            )
+        }
+
         // Rutas de autenticación (públicas)
         authRoutes()
 
