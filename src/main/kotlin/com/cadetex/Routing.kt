@@ -13,24 +13,34 @@ fun Application.configureRouting() {
 
         // Health check endpoint (público, para monitoreo)
         get("/health") {
-            val runtime = Runtime.getRuntime()
-            val totalMemory = runtime.totalMemory()
-            val freeMemory = runtime.freeMemory()
-            val usedMemory = totalMemory - freeMemory
-            val maxMemory = runtime.maxMemory()
-            
-            call.respond(
-                mapOf(
-                    "status" to "healthy",
-                    "service" to "cadetex-backend",
-                    "memory" to mapOf(
-                        "usedMB" to (usedMemory / 1024 / 1024),
-                        "totalMB" to (totalMemory / 1024 / 1024),
-                        "maxMB" to (maxMemory / 1024 / 1024),
-                        "freeMB" to (freeMemory / 1024 / 1024)
+            try {
+                val runtime = Runtime.getRuntime()
+                val totalMemory = runtime.totalMemory()
+                val freeMemory = runtime.freeMemory()
+                val usedMemory = totalMemory - freeMemory
+                val maxMemory = runtime.maxMemory()
+                
+                call.respond(
+                    mapOf(
+                        "status" to "healthy",
+                        "service" to "cadetex-backend",
+                        "memory" to mapOf(
+                            "usedMB" to (usedMemory / 1024 / 1024),
+                            "totalMB" to (totalMemory / 1024 / 1024),
+                            "maxMB" to (maxMemory / 1024 / 1024),
+                            "freeMB" to (freeMemory / 1024 / 1024)
+                        )
                     )
                 )
-            )
+            } catch (e: Exception) {
+                call.respond(
+                    mapOf(
+                        "status" to "healthy",
+                        "service" to "cadetex-backend",
+                        "note" to "memory info unavailable"
+                    )
+                )
+            }
         }
 
         // Rutas de autenticación (públicas)
