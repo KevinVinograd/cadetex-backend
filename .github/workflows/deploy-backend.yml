@@ -34,12 +34,30 @@ jobs:
         run: |
           echo "Current directory: $(pwd)"
           echo "Checking for Dockerfile..."
-          if [ -f "Dockerfile" ]; then
-            echo "✅ Dockerfile encontrado en la raíz"
-          else
-            echo "❌ Dockerfile no encontrado. Buscando..."
-            find . -name "Dockerfile" -type f
-            exit 1
+          if [ ! -f "Dockerfile" ]; then
+            echo "❌ Dockerfile no encontrado. Creándolo temporalmente..."
+            cat > Dockerfile <<'DOCKER_EOF'
+            # Build stage
+            FROM gradle:8.10.2-jdk17 AS build
+            WORKDIR /app
+            COPY build.gradle.kts settings.gradle.kts gradle/ ./
+            COPY gradlew gradlew.bat ./
+            RUN gradle dependencies --no-daemon || true
+            COPY src/ ./src/
+            RUN gradle clean shadowJar --no-daemon -x test
+
+            # Runtime stage
+            FROM eclipse-temurin:17-jre-alpine
+            WORKDIR /app
+            RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+            COPY --from=build /app/build/libs/cadetex-backend-v2-all.jar app.jar
+            RUN mkdir -p /app/config /app/logs && \
+                chown -R appuser:appgroup /app
+            USER appuser
+            EXPOSE 8080
+            ENV JAVA_OPTS="-Xmx512m -Xms256m -XX:+UseG1GC -XX:MaxGCPauseMillis=200"
+            ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -Dconfig.file=/app/config/application.conf -jar app.jar"]
+DOCKER_EOF
           fi
           
           echo "Building Docker image..."
