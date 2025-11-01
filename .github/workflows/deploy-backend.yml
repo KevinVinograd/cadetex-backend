@@ -32,8 +32,22 @@ jobs:
           ECR_REPOSITORY_URI: ${{ vars.ECR_REPOSITORY_URI }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          echo "Building Docker image..."
-          cd cadetex-backend
+          echo "Current directory: $(pwd)"
+          echo "Listing files:"
+          ls -la
+          
+          # Determinar el directorio del backend
+          if [ -d "cadetex-backend" ]; then
+            BACKEND_DIR="cadetex-backend"
+          elif [ -f "Dockerfile" ]; then
+            BACKEND_DIR="."
+          else
+            echo "Error: No se encontró el directorio cadetex-backend ni Dockerfile en la raíz"
+            exit 1
+          fi
+          
+          echo "Building Docker image from: $BACKEND_DIR"
+          cd $BACKEND_DIR
           docker build -t ${ECR_REPOSITORY_URI}:${IMAGE_TAG} .
           docker tag ${ECR_REPOSITORY_URI}:${IMAGE_TAG} ${ECR_REPOSITORY_URI}:latest
           
