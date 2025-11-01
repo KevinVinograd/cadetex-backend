@@ -102,6 +102,22 @@ jobs:
             export DB_USER="${{ vars.DB_USER || 'postgres' }}"
             export DB_PASSWORD="${{ secrets.DB_PASSWORD || '' }}"
 
+            # Log de diagnóstico (sin revelar password)
+            echo "RDS_ENDPOINT len: ${#RDS_ENDPOINT}"
+            echo "DB_NAME: ${DB_NAME:-<empty>}"
+            echo "DB_USER: ${DB_USER:-<empty>}"
+
+            # Fallback: obtener endpoint desde CloudFormation si no vino por variables
+            if [ -z "$RDS_ENDPOINT" ]; then
+              echo "RDS_ENDPOINT vacío. Consultando CloudFormation outputs..."
+              RDS_ENDPOINT=$(aws cloudformation describe-stacks \
+                --stack-name kdt-stack-prod \
+                --query "Stacks[0].Outputs[?OutputKey=='RdsEndpoint'].OutputValue" \
+                --output text \
+                --region ${AWS_REGION:-sa-east-1} || true)
+              echo "RDS_ENDPOINT (CFN) len: ${#RDS_ENDPOINT}"
+            fi
+
             # Generar application.conf si no existe usando variables del pipeline (sin heredoc)
             sudo mkdir -p /opt/cadetex-backend/config
             if [ ! -f /opt/cadetex-backend/config/application.conf ]; then
