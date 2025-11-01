@@ -33,21 +33,16 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
         run: |
           echo "Current directory: $(pwd)"
-          echo "Listing files:"
-          ls -la
-          
-          # Determinar el directorio del backend
-          if [ -d "cadetex-backend" ]; then
-            BACKEND_DIR="cadetex-backend"
-          elif [ -f "Dockerfile" ]; then
-            BACKEND_DIR="."
+          echo "Checking for Dockerfile..."
+          if [ -f "Dockerfile" ]; then
+            echo "✅ Dockerfile encontrado en la raíz"
           else
-            echo "Error: No se encontró el directorio cadetex-backend ni Dockerfile en la raíz"
+            echo "❌ Dockerfile no encontrado. Buscando..."
+            find . -name "Dockerfile" -type f
             exit 1
           fi
           
-          echo "Building Docker image from: $BACKEND_DIR"
-          cd $BACKEND_DIR
+          echo "Building Docker image..."
           docker build -t ${ECR_REPOSITORY_URI}:${IMAGE_TAG} .
           docker tag ${ECR_REPOSITORY_URI}:${IMAGE_TAG} ${ECR_REPOSITORY_URI}:latest
           
