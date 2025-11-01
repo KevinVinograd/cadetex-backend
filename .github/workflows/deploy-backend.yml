@@ -96,26 +96,11 @@ jobs:
             $DOCKER_CMD rm -f cadetex-backend || true
             sudo fuser -k 8080/tcp || true
 
-            # Generar application.conf si no existe usando variables del pipeline
+            # Generar application.conf si no existe usando variables del pipeline (sin heredoc)
             sudo mkdir -p /opt/cadetex-backend/config
             if [ ! -f /opt/cadetex-backend/config/application.conf ]; then
               echo "Creando /opt/cadetex-backend/config/application.conf desde variables del pipeline"
-              sudo tee /opt/cadetex-backend/config/application.conf > /dev/null <<'APPCONFEOF'
-ktor {
-  development = false
-  deployment { port = 8080 }
-  application { modules = [ com.cadetex.ApplicationKt.module ] }
-}
-
-database {
-  host = "${RDS_ENDPOINT}"
-  port = 5432
-  name = "${DB_NAME}"
-  user = "${DB_USER}"
-  password = "${DB_PASSWORD}"
-  maxPoolSize = 10
-}
-APPCONFEOF
+              sudo bash -c 'printf "ktor {\n  development = false\n  deployment { port = 8080 }\n  application { modules = [ com.cadetex.ApplicationKt.module ] }\n}\n\n database {\n  host = \"${RDS_ENDPOINT}\"\n  port = 5432\n  name = \"${DB_NAME}\"\n  user = \"${DB_USER}\"\n  password = \"${DB_PASSWORD}\"\n  maxPoolSize = 10\n}\n" > /opt/cadetex-backend/config/application.conf'
             fi
 
             # Validar config
