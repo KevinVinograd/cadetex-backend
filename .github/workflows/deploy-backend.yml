@@ -82,7 +82,7 @@ jobs:
             aws ecr get-login-password --region ${{ vars.AWS_REGION || 'sa-east-1' }} | $DOCKER_CMD login --username AWS --password-stdin ${{ vars.ECR_REPOSITORY_URI }}
             
             # Crear docker-compose de producción
-            sudo bash -c 'printf "version: '\''3.9'\''\nservices:\n  backend:\n    image: \${ECR_IMAGE}\n    container_name: cadetex-backend\n    restart: unless-stopped\n    ports:\n      - \"8080:8080\"\n    environment:\n      - AWS_REGION=\${AWS_REGION}\n      - S3_BUCKET_NAME=\${S3_BUCKET_NAME}\n    volumes:\n      - /opt/cadetex-backend/config:/app/config:ro\n      - /opt/cadetex-backend/logs:/app/logs\n" > /opt/cadetex-backend/docker-compose.prod.yml'
+            sudo bash -c 'printf "services:\n  backend:\n    image: \${ECR_IMAGE}\n    container_name: cadetex-backend\n    restart: unless-stopped\n    ports:\n      - \"8080:8080\"\n    environment:\n      - AWS_REGION=\${AWS_REGION}\n      - S3_BUCKET_NAME=\${S3_BUCKET_NAME}\n    volumes:\n      - /opt/cadetex-backend/config:/app/config:ro\n      - /opt/cadetex-backend/logs:/app/logs\n" > /opt/cadetex-backend/docker-compose.prod.yml'
             
             # Crear .env para docker compose
             echo "ECR_IMAGE=${{ vars.ECR_REPOSITORY_URI }}:${{ github.sha }}" | sudo tee /opt/cadetex-backend/.env > /dev/null
@@ -90,6 +90,11 @@ jobs:
             echo "S3_BUCKET_NAME=${{ vars.S3_BUCKET_NAME }}" | sudo tee -a /opt/cadetex-backend/.env > /dev/null
             
             cd /opt/cadetex-backend
+            # Parar/limpiar contenedor previo y liberar puerto 8080 si está en uso
+            $DOCKER_CMD compose -f docker-compose.prod.yml down --remove-orphans || true
+            $DOCKER_CMD stop cadetex-backend || true
+            $DOCKER_CMD rm -f cadetex-backend || true
+            sudo fuser -k 8080/tcp || true
             $DOCKER_CMD compose -f docker-compose.prod.yml pull
             $DOCKER_CMD compose -f docker-compose.prod.yml up -d
             
