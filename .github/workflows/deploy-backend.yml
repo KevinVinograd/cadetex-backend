@@ -33,6 +33,7 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
         run: |
           echo "Building Docker image..."
+          cd cadetex-backend
           docker build -t ${ECR_REPOSITORY_URI}:${IMAGE_TAG} .
           docker tag ${ECR_REPOSITORY_URI}:${IMAGE_TAG} ${ECR_REPOSITORY_URI}:latest
           
