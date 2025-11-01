@@ -6,12 +6,14 @@ on:
   workflow_dispatch:
 
 env:
-  AWS_REGION: sa-east-1
+  AWS_REGION: ${{ vars.AWS_REGION || 'sa-east-1' }}
+  ECR_REPOSITORY_URI: ${{ vars.ECR_REPOSITORY_URI }}
 
 jobs:
   build_and_push:
     runs-on: ubuntu-latest
     environment: prod
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -27,39 +29,27 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
+      - name: Build JAR
+        run: ./gradlew clean shadowJar -x test
+
       - name: Build and push Docker image
         env:
-          ECR_REPOSITORY_URI: ${{ vars.ECR_REPOSITORY_URI }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          echo "Current directory: $(pwd)"
-          echo "Checking for Dockerfile..."
-          if [ ! -f "Dockerfile" ]; then
-            echo "❌ Dockerfile no encontrado. Creando Dockerfile runtime simple y construyendo JAR con Gradle..."
-            ./gradlew clean shadowJar -x test
-            echo 'FROM eclipse-temurin:17-jre-alpine' > Dockerfile
-            echo 'WORKDIR /app' >> Dockerfile
-            echo 'RUN addgroup -S appgroup && adduser -S appuser -G appgroup' >> Dockerfile
-            echo 'COPY build/libs/*all.jar app.jar' >> Dockerfile
-            echo 'RUN mkdir -p /app/config /app/logs && chown -R appuser:appgroup /app' >> Dockerfile
-            echo 'USER appuser' >> Dockerfile
-            echo 'EXPOSE 8080' >> Dockerfile
-            echo 'ENV JAVA_OPTS="-Xmx512m -Xms256m -XX:+UseG1GC -XX:MaxGCPauseMillis=200"' >> Dockerfile
-            echo 'ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -Dconfig.file=/app/config/application.conf -jar app.jar"]' >> Dockerfile
-          fi
-          
           echo "Building Docker image..."
           docker build -t ${ECR_REPOSITORY_URI}:${IMAGE_TAG} .
           docker tag ${ECR_REPOSITORY_URI}:${IMAGE_TAG} ${ECR_REPOSITORY_URI}:latest
-          
+
           echo "Pushing Docker image to ECR..."
           docker push ${ECR_REPOSITORY_URI}:${IMAGE_TAG}
           docker push ${ECR_REPOSITORY_URI}:latest
+
 
   deploy:
     runs-on: ubuntu-latest
     needs: build_and_push
     environment: prod
+
     steps:
       - name: Deploy to EC2
         uses: appleboy/ssh-action@v1.0.3
@@ -70,54 +60,72 @@ jobs:
           port: ${{ vars.SSH_PORT || 22 }}
           script: |
             set -e
-            
+            echo "🚀 Iniciando despliegue Cadetex Backend"
+
             # Asegurar Docker activo
             sudo systemctl start docker || true
-            
-            # Variables docker
+
+            # Verificar docker rootless / sudo
             DOCKER_CMD="docker"
             if ! docker info >/dev/null 2>&1; then DOCKER_CMD="sudo docker"; fi
-            
-            # Login a ECR
-            aws ecr get-login-password --region ${{ vars.AWS_REGION || 'sa-east-1' }} | $DOCKER_CMD login --username AWS --password-stdin ${{ vars.ECR_REPOSITORY_URI }}
-            
-            # Crear docker-compose de producción
-            sudo bash -c 'printf "services:\n  backend:\n    image: \${ECR_IMAGE}\n    container_name: cadetex-backend\n    restart: unless-stopped\n    ports:\n      - \"8080:8080\"\n    environment:\n      - AWS_REGION=\${AWS_REGION}\n      - S3_BUCKET_NAME=\${S3_BUCKET_NAME}\n    volumes:\n      - /opt/cadetex-backend/config:/app/config:ro\n      - /opt/cadetex-backend/logs:/app/logs\n" > /opt/cadetex-backend/docker-compose.prod.yml'
-            
-            # Crear .env para docker compose
-            echo "ECR_IMAGE=${{ vars.ECR_REPOSITORY_URI }}:${{ github.sha }}" | sudo tee /opt/cadetex-backend/.env > /dev/null
-            echo "AWS_REGION=${{ vars.AWS_REGION || 'sa-east-1' }}" | sudo tee -a /opt/cadetex-backend/.env > /dev/null
-            echo "S3_BUCKET_NAME=${{ vars.S3_BUCKET_NAME }}" | sudo tee -a /opt/cadetex-backend/.env > /dev/null
-            
-            cd /opt/cadetex-backend
-            # Parar/limpiar contenedor previo y liberar puerto 8080 si está en uso
-            $DOCKER_CMD compose -f docker-compose.prod.yml down --remove-orphans || true
-            $DOCKER_CMD stop cadetex-backend || true
-            $DOCKER_CMD rm -f cadetex-backend || true
-            sudo fuser -k 8080/tcp || true
 
-            # Exportar variables necesarias para generar application.conf
+            # Login a ECR
+            aws ecr get-login-password --region ${{ env.AWS_REGION }} | $DOCKER_CMD login --username AWS --password-stdin ${{ env.ECR_REPOSITORY_URI }}
+
+            # Crear estructura de deploy
+            sudo mkdir -p /opt/cadetex-backend/{config,logs}
+            cd /opt/cadetex-backend
+
+            # Crear docker-compose de producción
+            cat <<EOF | sudo tee docker-compose.prod.yml > /dev/null
+            services:
+              backend:
+                image: \${ECR_IMAGE}
+                container_name: cadetex-backend
+                restart: unless-stopped
+                ports:
+                  - "8080:8080"
+                environment:
+                  - AWS_REGION=\${AWS_REGION}
+                  - S3_BUCKET_NAME=\${S3_BUCKET_NAME}
+                volumes:
+                  - /opt/cadetex-backend/config:/app/config:ro
+                  - /opt/cadetex-backend/logs:/app/logs
+                healthcheck:
+                  test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+                  interval: 30s
+                  timeout: 10s
+                  retries: 3
+            EOF
+
+            # Crear archivo .env
+            cat <<EOF | sudo tee .env > /dev/null
+            ECR_IMAGE=${{ env.ECR_REPOSITORY_URI }}:${{ github.sha }}
+            AWS_REGION=${{ env.AWS_REGION }}
+            S3_BUCKET_NAME=${{ vars.S3_BUCKET_NAME }}
+            EOF
+
+            # Obtener variables DB (Secrets Manager o fallback)
             export RDS_ENDPOINT="${{ vars.RDS_ENDPOINT }}"
             export DB_NAME="${{ vars.DB_NAME || 'kdt' }}"
             export DB_USER="${{ vars.DB_USER || 'postgres' }}"
             export DB_PASSWORD="${{ secrets.DB_PASSWORD || '' }}"
+            export DB_SECRET_ID="${{ vars.DB_SECRET_ID || '' }}"
 
-            # Log de diagnóstico (sin revelar password)
-            echo "RDS_ENDPOINT len: ${#RDS_ENDPOINT}"
-            echo "DB_NAME: ${DB_NAME:-<empty>}"
-            echo "DB_USER: ${DB_USER:-<empty>}"
+            echo "🔍 Detectando credenciales..."
+            echo "  - Endpoint len: ${#RDS_ENDPOINT}"
+            echo "  - DB user len: ${#DB_USER}"
 
-            # Intentar obtener credenciales desde Secrets Manager si se configuró DB_SECRET_ID
-            if [ -n "${{ vars.DB_SECRET_ID || '' }}" ]; then
-              echo "Leyendo credenciales desde Secrets Manager: ${{ vars.DB_SECRET_ID }}"
-              # Asegurar jq instalado
+            if [ -n "$DB_SECRET_ID" ]; then
+              echo "Obteniendo secretos desde Secrets Manager..."
               if ! command -v jq >/dev/null 2>&1; then
                 sudo apt-get update -y && sudo apt-get install -y jq
               fi
               SECRET_JSON=$(aws secretsmanager get-secret-value \
-                --region "${AWS_REGION:-sa-east-1}" \
-                --secret-id "${{ vars.DB_SECRET_ID }}" \
+                --region "${AWS_REGION}" \
+                --secret-id "${DB_SECRET_ID}" \
                 --query SecretString --output text || true)
+
               if [ -n "$SECRET_JSON" ] && [ "$SECRET_JSON" != "None" ]; then
                 RDS_ENDPOINT=${RDS_ENDPOINT:-$(echo "$SECRET_JSON" | jq -r .host)}
                 DB_USER=${DB_USER:-$(echo "$SECRET_JSON" | jq -r .username)}
@@ -126,29 +134,34 @@ jobs:
               fi
             fi
 
-            # Fallback: obtener endpoint desde CloudFormation si no vino por variables ni secret
-            if [ -z "$RDS_ENDPOINT" ]; then
-              echo "RDS_ENDPOINT vacío. Consultando CloudFormation outputs..."
-              RDS_ENDPOINT=$(aws cloudformation describe-stacks \
-                --stack-name kdt-stack-prod \
-                --query "Stacks[0].Outputs[?OutputKey=='RdsEndpoint'].OutputValue" \
-                --output text \
-                --region ${AWS_REGION:-sa-east-1} || true)
-              echo "RDS_ENDPOINT (CFN) len: ${#RDS_ENDPOINT}"
-            fi
+            # Generar application.conf
+            echo "📝 Escribiendo application.conf"
+            sudo -E bash -c 'cat > /opt/cadetex-backend/config/application.conf <<CONF
+            ktor {
+              development = false
+              deployment { port = 8080 }
+              application { modules = [ com.cadetex.ApplicationKt.module ] }
+            }
 
-            # Generar application.conf (siempre sobrescribir para asegurar valores correctos)
-            sudo mkdir -p /opt/cadetex-backend/config
-            echo "Escribiendo /opt/cadetex-backend/config/application.conf"
-            sudo -E bash -c 'printf "ktor {\n  development = false\n  deployment { port = 8080 }\n  application { modules = [ com.cadetex.ApplicationKt.module ] }\n}\n\n database {\n  host = \"${RDS_ENDPOINT}\"\n  port = 5432\n  name = \"${DB_NAME}\"\n  user = \"${DB_USER}\"\n  password = \"${DB_PASSWORD}\"\n  maxPoolSize = 10\n}\n" > /opt/cadetex-backend/config/application.conf'
+            database {
+              host = "${RDS_ENDPOINT}"
+              port = 5432
+              name = "${DB_NAME}"
+              user = "${DB_USER}"
+              password = "${DB_PASSWORD}"
+              maxPoolSize = 10
+            }
+            CONF'
 
-            # Validar config
             sudo head -n 20 /opt/cadetex-backend/config/application.conf || true
 
+            # Reiniciar contenedor limpio
+            echo "🧹 Reiniciando contenedor..."
+            $DOCKER_CMD compose -f docker-compose.prod.yml down -v --remove-orphans || true
             $DOCKER_CMD compose -f docker-compose.prod.yml pull
             $DOCKER_CMD compose -f docker-compose.prod.yml up -d
-            
-            echo "Esperando 5 segundos para que el contenedor inicie..."
-            sleep 5
+
+            echo "⌛ Esperando healthcheck..."
+            sleep 10
             $DOCKER_CMD compose -f docker-compose.prod.yml ps
-            $DOCKER_CMD logs --tail 50 cadetex-backend || true
+            echo "✅ Deploy completado correctamente."
